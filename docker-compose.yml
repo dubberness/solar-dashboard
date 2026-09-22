@@ -1,0 +1,12 @@
+services:
+  solar-dashboard:
+    image: ghcr.io/dubberness/solar-dashboard:latest
+    container_name: solar-dashboard
+    restart: unless-stopped
+    ports:
+      - '8420:8080'
+    volumes:
+      - ./data:/config
+    environment:
+      INVERTER_HOST: 192.168.1.8
+      TZ: Australia/Hobart

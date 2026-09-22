@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+	color-scheme: light;
+	--surface-0: #f4f3ef;
+	--surface-1: #fcfcfb;
+	--surface-2: #ffffff;
+	--border: #e3e1da;
+	--text-primary: #1a1a18;
+	--text-secondary: #55544f;
+	--text-muted: #8a8983;
+	--grid: #ebe9e3;
+	--peak-band: rgba(20, 20, 18, 0.05);
+
+	--series-solar: #eda100;
+	--series-use: #2a78d6;
+	--series-peak: #eb6834;
+	--series-export: #1baf7a;
+
+	--go-bg: #e6f4e4;
+	--go-border: #9ed197;
+	--go-text: #1d5a17;
+	--go-icon: #2f8a25;
+	--okay-bg: #fdf1d8;
+	--okay-border: #efc467;
+	--okay-text: #6b4600;
+	--okay-icon: #b77a00;
+	--wait-bg: #fbe6e4;
+	--wait-border: #eba49d;
+	--wait-text: #7c1f18;
+	--wait-icon: #c1392e;
+	--nodata-bg: #efeeea;
+	--nodata-border: #d3d1c9;
+	--nodata-text: #55544f;
+	--nodata-icon: #8a8983;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:where(:not([data-theme='light'])) {
+		color-scheme: dark;
+		--surface-0: #121211;
+		--surface-1: #1a1a19;
+		--surface-2: #222220;
+		--border: #34342f;
+		--text-primary: #f4f3ef;
+		--text-secondary: #c3c2b7;
+		--text-muted: #8f8e86;
+		--grid: #2c2c29;
+		--peak-band: rgba(255, 255, 255, 0.05);
+
+		--series-solar: #c98500;
+		--series-use: #3987e5;
+		--series-peak: #d95926;
+		--series-export: #199e70;
+
+		--go-bg: #16301a;
+		--go-border: #2f6b35;
+		--go-text: #b9e8b3;
+		--go-icon: #6cc862;
+		--okay-bg: #33270f;
+		--okay-border: #7a5a14;
+		--okay-text: #f6d68e;
+		--okay-icon: #e7a92a;
+		--wait-bg: #3a1a17;
+		--wait-border: #83352d;
+		--wait-text: #f6c0ba;
+		--wait-icon: #ec6a5d;
+		--nodata-bg: #262624;
+		--nodata-border: #3c3c38;
+		--nodata-text: #c3c2b7;
+		--nodata-icon: #8f8e86;
+	}
+}
+
+html,
+body {
+	background: var(--surface-0);
+	color: var(--text-primary);
+	font-family:
+		-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue',
+		sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+	font-variant-numeric: tabular-nums;
+}

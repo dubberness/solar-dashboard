@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>solar-dashboard</Name>
+  <Repository>ghcr.io/dubberness/solar-dashboard:latest</Repository>
+  <Registry>https://github.com/dubberness/solar-dashboard/pkgs/container/solar-dashboard</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/dubberness/solar-dashboard/issues</Support>
+  <Project>https://github.com/dubberness/solar-dashboard</Project>
+  <Overview>
+    A simple solar dashboard for a Fronius inverter with a smart meter. Big green/amber/red
+    cards say whether the washing machine and dryer can run on spare solar right now, based
+    on live readings, a Solcast forecast and the TasNetworks Tariff 93 peak times. A history
+    page tracks peak grid use, solar generation and value against the same period last year.
+
+    Open the WebUI, go to Settings (default PIN 0000) and add your Solcast site ID and API key.
+  </Overview>
+  <Category>Tools: HomeAutomation:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/dubberness/solar-dashboard/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/dubberness/solar-dashboard/main/static/icon-512.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+
+  <Config Name="WebUI Port" Target="8080" Default="8420" Mode="tcp"
+          Description="Port for the dashboard."
+          Type="Port" Display="always" Required="true" Mask="false">8420</Config>
+
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/solar-dashboard"
+          Mode="rw"
+          Description="Holds config.json and the SQLite history database."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/solar-dashboard</Config>
+
+  <Config Name="Inverter address" Target="INVERTER_HOST" Default="192.168.1.8"
+          Description="IP or hostname of the Fronius inverter (Solar API). Leave blank to set it in the web UI."
+          Type="Variable" Display="always" Required="false" Mask="false">192.168.1.8</Config>
+
+  <Config Name="Solcast API key" Target="SOLCAST_API_KEY" Default=""
+          Description="Optional. Can also be entered in Settings."
+          Type="Variable" Display="always" Required="false" Mask="true"></Config>
+
+  <Config Name="Solcast site ID" Target="SOLCAST_RESOURCE_ID" Default=""
+          Description="Optional. Your Solcast rooftop site resource ID."
+          Type="Variable" Display="always" Required="false" Mask="false"></Config>
+
+  <Config Name="Settings PIN" Target="SETTINGS_PIN" Default=""
+          Description="Optional. Overrides the PIN set in the web UI (default 0000)."
+          Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+
+  <Config Name="TZ" Target="TZ" Default="Australia/Hobart"
+          Type="Variable" Display="advanced" Required="false" Mask="false">Australia/Hobart</Config>
+  <Config Name="PUID" Target="PUID" Default="99"
+          Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100"
+          Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+</Container>
