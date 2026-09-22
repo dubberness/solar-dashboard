@@ -8,7 +8,7 @@
 </script>
 
 <section
-	class="card flex min-h-[220px] flex-col gap-3 rounded-3xl border p-6 transition-colors duration-700 sm:p-8"
+	class="card flex flex-col gap-3 rounded-3xl border p-5 transition-colors duration-700 sm:min-h-[220px] sm:p-8"
 	style:--bg="var(--{card.state}-bg)"
 	style:--bd="var(--{card.state}-border)"
 	style:--fg="var(--{card.state}-text)"

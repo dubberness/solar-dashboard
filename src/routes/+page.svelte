@@ -107,7 +107,7 @@
 				<div class="flex items-center gap-1.5 text-base text-[var(--text-secondary)] sm:text-lg">
 					<Icon name={stat.icon as 'sun'} size={20} />{stat.label}
 				</div>
-				<div class="tabular text-3xl font-semibold sm:text-4xl">
+				<div class="tabular text-2xl font-semibold whitespace-nowrap sm:text-4xl">
 					{stat.value == null ? '–' : kw(stat.value)}
 				</div>
 			</div>
