@@ -2,7 +2,7 @@
 import { tariffFor } from '$lib/costing';
 import { decide } from '$lib/decision';
 import { isPeak, localDate, periodLabel } from '$lib/tou';
-import type { ForecastSlot, LiveReading, Snapshot } from '$lib/types';
+import type { CarMode, ForecastSlot, LiveReading, Snapshot } from '$lib/types';
 import { getConfig } from './config';
 import { getDb } from './db';
 import { carNow } from './evcc';
@@ -84,6 +84,12 @@ function carPower(r: LiveReading): number | null {
 	const measured = tessieCarW(r.ts);
 	if (measured !== null) return Math.min(measured, r.loadW);
 	return Math.min(car.chargingW, Math.max(0, r.loadW - HOUSE_FLOOR_W));
+}
+
+function carSummary(r: LiveReading, now: number): { kw: number; mode: CarMode } | null {
+	const mode = carNow(now)?.mode;
+	if (!mode || (r.carW ?? 0) < 100) return null;
+	return { kw: r.carW! / 1000, mode };
 }
 
 function record(r: LiveReading): void {
@@ -221,13 +227,7 @@ export function snapshot(now = Date.now()): Snapshot {
 						loadKw: Math.max(0, latest.loadW - (latest.carW ?? 0)) / 1000,
 						spareKw: (latest.pvW - latest.loadW + (latest.carFlexW ?? 0)) / 1000,
 						gridKw: latest.gridW / 1000,
-						car:
-							(latest.carW ?? 0) > 100
-								? {
-										kw: latest.carW! / 1000,
-										flexible: (latest.carFlexW ?? 0) >= latest.carW! * 0.5
-									}
-								: null
+						car: carSummary(latest, now)
 					}
 				: null,
 		period: periodLabel(now),

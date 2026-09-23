@@ -51,6 +51,9 @@ export interface CardVerdict {
 	peakCostCents: number | null;
 }
 
+/** evcc's charging mode: solar only, minimum + solar, fast, or a charging plan. */
+export type CarMode = 'pv' | 'minpv' | 'now' | 'plan';
+
 export interface Snapshot {
 	now: number;
 	stale: boolean;
@@ -61,7 +64,7 @@ export interface Snapshot {
 		/** Solar not used by the house, counting car charging that would give way. */
 		spareKw: number;
 		gridKw: number;
-		car: { kw: number; flexible: boolean } | null;
+		car: { kw: number; mode: CarMode } | null;
 	} | null;
 	period: { isPeak: boolean; label: string };
 	cards: CardVerdict[];

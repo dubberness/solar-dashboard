@@ -1,6 +1,7 @@
 // What the car is doing, from evcc. In solar-only ("pv") mode evcc re-balances
 // every 30 seconds and turns the car down (or off) when something else starts
 // using the surplus, so that charging counts as spare sunshine for the cards.
+import type { CarMode } from '$lib/types';
 import { getConfig } from './config';
 import { log } from './log';
 
@@ -14,6 +15,8 @@ export interface CarPower {
 	chargingW: number;
 	/** How much of the charge evcc keeps going even without spare solar. */
 	keepW: number;
+	/** The strictest mode among charging cars, or null when none is charging. */
+	mode: CarMode | null;
 }
 
 interface CarState extends CarPower {
@@ -37,6 +40,10 @@ export function parseEvccCar(body: any): CarPower {
 	const site = body?.result ?? body;
 	let chargingW = 0;
 	let keepW = 0;
+	let mode: CarMode | null = null;
+	const strictness: CarMode[] = ['pv', 'minpv', 'now', 'plan'];
+	const stricter = (m: CarMode) =>
+		mode === null || strictness.indexOf(m) > strictness.indexOf(mode) ? m : mode;
 	for (const lp of site?.loadpoints ?? []) {
 		if (!lp?.charging) continue;
 		const phases = Number(lp.phasesActive) || 1;
@@ -44,10 +51,20 @@ export function parseEvccCar(body: any): CarPower {
 		const power = offeredA > 0 ? offeredA * VOLTS * phases : Number(lp.chargePower) || 0;
 		if (power <= 0) continue;
 		chargingW += power;
-		if (lp.planActive || (lp.mode !== 'pv' && lp.mode !== 'minpv')) keepW = Infinity;
-		else if (lp.mode === 'minpv') keepW += (Number(lp.minCurrent) || 6) * VOLTS * phases;
+		if (lp.planActive) {
+			keepW = Infinity;
+			mode = stricter('plan');
+		} else if (lp.mode === 'pv') {
+			mode = stricter('pv');
+		} else if (lp.mode === 'minpv') {
+			keepW += (Number(lp.minCurrent) || 6) * VOLTS * phases;
+			mode = stricter('minpv');
+		} else {
+			keepW = Infinity;
+			mode = stricter('now');
+		}
 	}
-	return { chargingW, keepW };
+	return { chargingW, keepW, mode };
 }
 
 export async function pollEvccCar(): Promise<void> {
@@ -70,5 +87,5 @@ export async function pollEvccCar(): Promise<void> {
 export function carNow(now = Date.now()): CarPower | null {
 	const last = state.last;
 	if (!last || now - last.ts > FRESH_MS) return null;
-	return { chargingW: last.chargingW, keepW: last.keepW };
+	return { chargingW: last.chargingW, keepW: last.keepW, mode: last.mode };
 }

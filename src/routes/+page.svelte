@@ -116,11 +116,18 @@
 
 	{#if snap.live?.car}
 		<p class="-mt-2 px-1 text-base text-[var(--text-secondary)] sm:text-lg">
-			{#if snap.live.car.flexible}
+			{#if snap.live.car.mode === 'pv'}
 				The car is charging on spare sunshine ({kw(snap.live.car.kw)}). It slows down when you turn
 				something on.
+			{:else if snap.live.car.mode === 'minpv'}
+				The car is charging ({kw(snap.live.car.kw)}). It slows down when you turn something on, but
+				keeps charging a little.
+			{:else if snap.live.car.mode === 'plan'}
+				The car is charging to a schedule ({kw(snap.live.car.kw)}). It won’t slow down for the
+				washer or dryer.
 			{:else}
-				The car is charging at full speed ({kw(snap.live.car.kw)}).
+				The car is on fast charge ({kw(snap.live.car.kw)}). It won’t slow down for the washer or
+				dryer.
 			{/if}
 		</p>
 	{/if}
