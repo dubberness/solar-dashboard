@@ -98,6 +98,29 @@ export function colourFor(est: CycleEstimate): Colour {
 	return 'wait';
 }
 
+/**
+ * Whether spare solar covers these appliances all running at once. Each card
+ * only asks about its own appliance, so two can be green when the sun covers
+ * one or the other but not both. Only appliances whose cycle reaches into peak
+ * count, since off-peak grid power is fine.
+ */
+export function fitsTogether(appliances: Appliance[], input: DecisionInput): boolean {
+	if (input.liveSpareKw === null) return true;
+	const spareAt = makeSpareModel(input);
+	const needSun = appliances.filter((a) => estimateCycle(input.now, a, spareAt).peakMinutes > 0);
+	if (needSun.length < 2) return true;
+	const together: Appliance = {
+		id: 'together',
+		name: 'Together',
+		icon: needSun[0].icon,
+		thresholdKw: needSun.reduce((s, a) => s + a.thresholdKw, 0),
+		typicalKw: needSun.reduce((s, a) => s + a.typicalKw, 0),
+		// They overlap for at least the shorter cycle.
+		cycleHours: Math.min(...needSun.map((a) => a.cycleHours))
+	};
+	return colourFor(estimateCycle(input.now, together, spareAt)) === 'go';
+}
+
 function scan(
 	from: number,
 	hours: number,

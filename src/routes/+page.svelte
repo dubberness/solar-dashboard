@@ -154,6 +154,17 @@
 		</div>
 	</header>
 
+	{#if snap.oneAtATime}
+		<p
+			class="rounded-2xl border px-4 py-3 text-lg font-medium sm:text-xl"
+			style:background="var(--okay-bg)"
+			style:border-color="var(--okay-border)"
+			style:color="var(--okay-text)"
+		>
+			Enough sunshine for one at a time, not both together.
+		</p>
+	{/if}
+
 	<div class="grid gap-4 md:grid-cols-2">
 		{#each snap.cards as card (card.applianceId)}
 			<ApplianceCard {card} />

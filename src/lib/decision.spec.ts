@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TARIFF } from './costing';
-import { decide, estimateCycle } from './decision';
+import { decide, estimateCycle, fitsTogether } from './decision';
 import type { Appliance, ForecastSlot } from './types';
 
 const aest = (y: number, m: number, d: number, h: number, mi = 0) =>
@@ -69,6 +69,22 @@ describe('decide', () => {
 		const v = decide({ ...dryer, cycleHours: 4 }, base(now, 2.5, fc));
 		expect(v.state).toBe('go');
 		expect(v.detail).toBe('Start by 1pm so sunshine covers the peak part');
+	});
+
+	it('spots when the sun covers either appliance but not both at once', () => {
+		// 5pm, 2 kW spare: enough for the washer (1.3) or the dryer (1.2), not 2.5 together.
+		const now = aest(2026, 9, 23, 17);
+		const fc = forecast(now - 3600e3, 12, () => 2.5);
+		expect(decide(washer, base(now, 2, fc)).state).toBe('go');
+		expect(decide(dryer, base(now, 2, fc)).state).toBe('go');
+		expect(fitsTogether([washer, dryer], base(now, 2, fc))).toBe(false);
+		// 4 kW spare covers both.
+		const sunny = forecast(now - 3600e3, 12, () => 4.5);
+		expect(fitsTogether([washer, dryer], base(now, 4, sunny))).toBe(true);
+	});
+
+	it("doesn't warn off-peak, when the grid is cheap anyway", () => {
+		expect(fitsTogether([washer, dryer], base(aest(2026, 9, 23, 11), 0))).toBe(true);
 	});
 
 	it('is green at peak when forecast solar covers the whole cycle', () => {

@@ -68,6 +68,8 @@ export interface Snapshot {
 	} | null;
 	period: { isPeak: boolean; label: string };
 	cards: CardVerdict[];
+	/** Every green card is green, but the sun can't cover them all running at once. */
+	oneAtATime: boolean;
 	forecastAvailable: boolean;
 }
 

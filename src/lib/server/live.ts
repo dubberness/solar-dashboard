@@ -1,6 +1,6 @@
 // Live polling, 5-minute interval aggregation, and the snapshot pushed to screens.
 import { tariffFor } from '$lib/costing';
-import { decide } from '$lib/decision';
+import { decide, fitsTogether } from '$lib/decision';
 import { isPeak, localDate, periodLabel } from '$lib/tou';
 import type { CarMode, ForecastSlot, LiveReading, Snapshot } from '$lib/types';
 import { getConfig } from './config';
@@ -14,6 +14,8 @@ const MIN = 60_000;
 const BUCKET = 5 * MIN;
 const STALE_AFTER = 2 * MIN;
 const AVG_WINDOW = 5 * MIN;
+/** Look-ahead plans for house use at this quantile of the last 14 days (a busy afternoon). */
+const BUSY_QUANTILE = 0.75;
 /** The house never uses less than about this, so the car can't be all of the metered load. */
 const HOUSE_FLOOR_W = 300;
 
@@ -164,9 +166,9 @@ function hobartOffset(ts: number): number {
 }
 
 /**
- * Median general-circuit load per local half hour over the last 14 days, not
- * counting the car. Medians keep one-off loads (like the washer itself) out of
- * the baseline. Car charging isn't known for intervals from before evcc was
+ * General-circuit load per local half hour over the last 14 days, not counting
+ * the car: the level a busy day (1 in 4) reaches, so looking ahead errs towards
+ * less spare solar. Car charging isn't known for intervals from before evcc was
  * polled, so once a half hour has a few days with it known, only those count.
  */
 function baseLoadProfile(now: number): number[] {
@@ -193,7 +195,7 @@ function baseLoadProfile(now: number): number[] {
 	const slots = buckets.map((b) => {
 		if (!b.length) return 0.5;
 		const s = [...b].sort((x, y) => x - y);
-		return s[Math.floor(s.length / 2)];
+		return s[Math.floor(s.length * BUSY_QUANTILE)];
 	});
 	profile = { builtAt: now, slots };
 	return slots;
@@ -217,6 +219,9 @@ export function snapshot(now = Date.now()): Snapshot {
 	const baseLoadKw = (ts: number) =>
 		slots[Math.floor(((((ts + offset) % 86_400_000) + 86_400_000) % 86_400_000) / (30 * MIN))];
 	const tariff = tariffFor(cfg.tariffs, localDate(now));
+	const input = { now, liveSpareKw, livePvKw, forecast, baseLoadKw, tariff };
+	const cards = cfg.appliances.map((a) => decide(a, input));
+	const green = cfg.appliances.filter((a, i) => cards[i].state === 'go');
 
 	return {
 		now,
@@ -232,9 +237,8 @@ export function snapshot(now = Date.now()): Snapshot {
 					}
 				: null,
 		period: periodLabel(now),
-		cards: cfg.appliances.map((a) =>
-			decide(a, { now, liveSpareKw, livePvKw, forecast, baseLoadKw, tariff })
-		),
+		cards,
+		oneAtATime: green.length >= 2 && !fitsTogether(green, input),
 		forecastAvailable: forecast !== null && forecast.at(-1)!.periodEnd > now + 3 * 60 * MIN
 	};
 }
