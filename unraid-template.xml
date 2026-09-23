@@ -15,7 +15,9 @@
     on live readings, a Solcast forecast and the TasNetworks Tariff 93 peak times. A history
     page tracks peak grid use, solar generation and value against the same period last year.
 
-    Open the WebUI, go to Settings (default PIN 0000) and add your Solcast site ID and API key.
+    The solar forecast is read from evcc (which already fetches Solcast), so it uses none of your
+    Solcast account's free daily API calls. Direct Solcast is available in Settings if you don't run evcc.
+    Default settings PIN: 0000.
   </Overview>
   <Category>Tools: HomeAutomation:</Category>
   <WebUI>http://[IP]:[PORT:8080]/</WebUI>
@@ -42,13 +44,17 @@
           Description="IP or hostname of the Fronius inverter (Solar API). Leave blank to set it in the web UI."
           Type="Variable" Display="always" Required="false" Mask="false">192.168.1.8</Config>
 
+  <Config Name="evcc address" Target="EVCC_URL" Default="http://192.168.1.3:7070"
+          Description="evcc base URL. The dashboard reads evcc's solar forecast from it, so it needs no Solcast calls of its own."
+          Type="Variable" Display="always" Required="false" Mask="false">http://192.168.1.3:7070</Config>
+
   <Config Name="Solcast API key" Target="SOLCAST_API_KEY" Default=""
-          Description="Optional. Can also be entered in Settings."
-          Type="Variable" Display="always" Required="false" Mask="true"></Config>
+          Description="Only if you don't use evcc. Shares your Solcast account's ~10 calls a day."
+          Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
 
   <Config Name="Solcast site ID" Target="SOLCAST_RESOURCE_ID" Default=""
-          Description="Optional. Your Solcast rooftop site resource ID."
-          Type="Variable" Display="always" Required="false" Mask="false"></Config>
+          Description="Only if you don't use evcc."
+          Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 
   <Config Name="Settings PIN" Target="SETTINGS_PIN" Default=""
           Description="Optional. Overrides the PIN set in the web UI (default 0000)."

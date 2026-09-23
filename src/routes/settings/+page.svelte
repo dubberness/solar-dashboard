@@ -234,46 +234,98 @@
 						? ` (error: ${data.status.archive.lastError})`
 						: ''}
 				</p>
+				<fieldset class="flex flex-col gap-2">
+					<span class="text-sm text-[var(--text-secondary)]">Solar forecast from</span>
+					<label class="!flex-row items-center gap-2 !text-base !text-[var(--text-primary)]">
+						<input
+							type="radio"
+							name="forecastSource"
+							value="evcc"
+							checked={data.config.forecastSource === 'evcc'}
+						/>
+						evcc (recommended, uses no Solcast calls of its own)
+					</label>
+					<label class="!flex-row items-center gap-2 !text-base !text-[var(--text-primary)]">
+						<input
+							type="radio"
+							name="forecastSource"
+							value="solcast"
+							checked={data.config.forecastSource === 'solcast'}
+						/>
+						Solcast directly (shares the account's ~10 daily calls)
+					</label>
+					<label class="!flex-row items-center gap-2 !text-base !text-[var(--text-primary)]">
+						<input
+							type="radio"
+							name="forecastSource"
+							value="none"
+							checked={data.config.forecastSource === 'none'}
+						/>
+						No forecast (live readings only)
+					</label>
+				</fieldset>
 				<label>
-					Solcast site ID
+					evcc address
 					<input
 						class="field"
-						name="solcastResourceId"
-						value={data.config.solcastResourceId}
-						placeholder="abcd-1234-ef56-7890"
-						disabled={isLocked('solcast.resourceId')}
+						name="evccUrl"
+						value={data.config.evccUrl}
+						placeholder="http://192.168.1.3:7070"
+						disabled={isLocked('forecast.evccUrl')}
 					/>
 				</label>
-				<label>
-					Solcast API key
-					<input
-						class="field"
-						name="solcastApiKey"
-						type="password"
-						autocomplete="off"
-						placeholder={data.config.solcastKeySet
-							? 'Saved. Leave blank to keep it.'
-							: 'Paste your API key'}
-						disabled={isLocked('solcast.apiKey')}
-					/>
-				</label>
+				<details class="flex flex-col gap-3">
+					<summary class="cursor-pointer text-sm text-[var(--text-secondary)]"
+						>Direct Solcast settings</summary
+					>
+					<div class="mt-3 flex flex-col gap-3">
+						<label>
+							Solcast site ID
+							<input
+								class="field"
+								name="solcastResourceId"
+								value={data.config.solcastResourceId}
+								placeholder="abcd-1234-ef56-7890"
+								disabled={isLocked('solcast.resourceId')}
+							/>
+						</label>
+						<label>
+							Solcast API key
+							<input
+								class="field"
+								name="solcastApiKey"
+								type="password"
+								autocomplete="off"
+								placeholder={data.config.solcastKeySet
+									? 'Saved. Leave blank to keep it.'
+									: 'Paste your API key'}
+								disabled={isLocked('solcast.apiKey')}
+							/>
+						</label>
+						{#if data.config.solcastKeySet}
+							<label class="!flex-row items-center gap-2"
+								><input type="checkbox" name="solcastClearKey" /> Remove saved key</label
+							>
+						{/if}
+					</div>
+				</details>
 				<p class="hint">
-					{#if !data.config.solcastKeySet || !data.config.solcastResourceId}
-						Without Solcast, cards use live readings only.
+					{#if data.status.forecast.source === 'none'}
+						Cards use live readings only.
+					{:else if !data.status.forecast.configured}
+						Not set up yet. Cards use live readings only.
 					{:else}
-						Forecast updated {ago(data.status.solcast.lastFetch)}, {data.status.solcast.callsToday} of
-						about 10 free calls used today{data.status.solcast.lastError
-							? `. Last error: ${data.status.solcast.lastError}`
+						Forecast updated {ago(data.status.forecast.lastFetch)}{data.status.forecast
+							.callsToday !== null
+							? `, ${data.status.forecast.callsToday} of about 10 Solcast calls used today`
+							: ''}{data.status.forecast.lastError
+							? `. Last error: ${data.status.forecast.lastError}`
 							: ''}.
 					{/if}
 				</p>
-				{#if data.config.solcastKeySet}
-					<div class="flex flex-wrap gap-3">
-						<button class="btn" formaction="?/refreshForecast">Refresh forecast now</button>
-						<label class="flex items-center gap-2"
-							><input type="checkbox" name="solcastClearKey" /> Remove saved key</label
-						>
-					</div>
+				{#if data.status.forecast.configured}
+					<button class="btn self-start" formaction="?/refreshForecast">Refresh forecast now</button
+					>
 				{/if}
 				{#if data.locked.length}
 					<p class="hint">Greyed-out fields are set by the container’s environment variables.</p>

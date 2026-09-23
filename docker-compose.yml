@@ -9,4 +9,5 @@ services:
       - ./data:/config
     environment:
       INVERTER_HOST: 192.168.1.8
+      EVCC_URL: http://192.168.1.3:7070
       TZ: Australia/Hobart

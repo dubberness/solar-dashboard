@@ -4,7 +4,7 @@ A self-hosted dashboard for a Fronius inverter with a Fronius smart meter, built
 
 - **Now screen:** one big card per appliance. Green means _Go now_, amber means _Okay_, red means _Wait_. Below the cards: what the panels are making, what the house is using, and today's chart with peak times shaded.
 - **History:** peak grid power, solar generated, solar used and solar value by day, week, month and year, compared with the same dates last year.
-- **Settings:** PIN-protected appliance thresholds, electricity rates, Solcast forecast, and Solar.web history import.
+- **Settings:** PIN-protected appliance thresholds, electricity rates, forecast source (evcc or Solcast), and Solar.web history import.
 
 ## How the cards decide
 
@@ -20,7 +20,7 @@ A card's colour answers one question: **how much of this cycle would run on peak
 The model uses:
 
 - **Spare solar now:** the 5-minute average of solar production minus house use, trusted for the first 10 minutes of a cycle.
-- **Solcast forecast after that:** solar production minus the house's typical load at that time of day (the median of the last 14 days). If live output differs from the forecast, the forecast is scaled to match, and that correction fades out over about 90 minutes.
+- **Solar forecast after that** (from evcc, or Solcast directly): solar production minus the house's typical load at that time of day (the median of the last 14 days). If live output differs from the forecast, the forecast is scaled to match, and that correction fades out over about 90 minutes.
 - **Peak times:** TasNetworks Tariff 93, weekdays 7–10am and 4–9pm **AEST**. These fall an hour later on the clock during daylight saving. Weekends are off-peak.
 
 Each appliance has a **green threshold** (spare kW needed, including headroom), a **typical draw** (used for cost estimates) and a **cycle length**. All three are adjustable in Settings.
@@ -35,13 +35,17 @@ The Fronius meter only measures the house's general circuit. Heating and hot wat
 | ----------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Fronius Solar API (`/solar_api/v1`) | Live readings every 5 s      | Plain HTTP on the LAN, no login                                                                                            |
 | Fronius archive (`GetArchiveData`)  | 5-minute history             | About 9 months are held on the inverter. Backfilled on first start (slow: about a week per minute), then re-synced hourly. |
-| Solcast rooftop site                | Forecast                     | Free hobbyist tier. About 9 calls a day, spaced through daylight.                                                          |
+| evcc `/api/state` (recommended)     | Forecast                     | evcc already fetches Solcast; reading its `forecast.solar` costs no extra Solcast calls. Refreshed every 15 min.           |
+| Solcast rooftop site (fallback)     | Forecast                     | Only if you don't run evcc. Free hobbyist tier: about 9 calls a day, spaced through daylight.                              |
 | Solar.web "Energy balance" export   | Older history (daily totals) | Import in Settings. Peak/off-peak split is estimated from similar months and marked "≈".                                   |
 
 ## Running on Unraid
 
 1. Add the container from `unraid-template.xml`, or use `docker-compose.yml`. Map `/config` to appdata and pick a host port (default 8420).
-2. Open `http://<unraid-ip>:8420`, go to **Settings** (default PIN **0000**, change it), and enter your Solcast site ID and API key.
+2. Open `http://<unraid-ip>:8420`, go to **Settings** (default PIN **0000**, change it), and check the forecast source. The default is evcc: set its address (for example `http://192.168.1.3:7070`) there or with `EVCC_URL`.
+
+   **Solcast's free tier allows about 10 calls a day per account.** If evcc already uses your Solcast account, keep this dashboard on the evcc source so the two don't share that budget. Keep the evcc container set to auto-start, since the dashboard falls back to live readings when evcc is down.
+
 3. In Settings, import Solar.web **Energy balance** exports (daily values, one year per file) for history older than the inverter's archive.
 4. On the iPad, open the page in Safari, then **Share → Add to Home Screen**. It opens full screen with its own icon.
 
@@ -50,7 +54,8 @@ The Fronius meter only measures the house's general circuit. Heating and hot wat
 | Variable                                 | Default                         |                                            |
 | ---------------------------------------- | ------------------------------- | ------------------------------------------ |
 | `INVERTER_HOST`                          | –                               | Overrides the inverter address in Settings |
-| `SOLCAST_API_KEY`, `SOLCAST_RESOURCE_ID` | –                               | Override the Solcast settings              |
+| `EVCC_URL`                               | –                               | evcc address for the forecast              |
+| `SOLCAST_API_KEY`, `SOLCAST_RESOURCE_ID` | –                               | Direct Solcast (only without evcc)         |
 | `SETTINGS_PIN`                           | –                               | Overrides the PIN                          |
 | `DATA_DIR`                               | `/config`                       | Where `config.json` and `solar.db` live    |
 | `PORT`                                   | `8080`                          | Port inside the container                  |

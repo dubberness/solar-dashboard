@@ -3,10 +3,12 @@ import path from 'node:path';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_TARIFF } from '$lib/costing';
 import type { Appliance, Tariff } from '$lib/types';
+import type { ForecastSource } from './forecast';
 
 export interface AppConfig {
 	inverterHost: string;
 	pollSeconds: number;
+	forecast: { source: ForecastSource; evccUrl: string };
 	solcast: { apiKey: string; resourceId: string };
 	appliances: Appliance[];
 	tariffs: Tariff[];
@@ -28,6 +30,7 @@ export const DEFAULT_APPLIANCES: Appliance[] = [
 const DEFAULTS: AppConfig = {
 	inverterHost: '192.168.1.8',
 	pollSeconds: 5,
+	forecast: { source: 'evcc', evccUrl: '' },
 	solcast: { apiKey: '', resourceId: '' },
 	appliances: DEFAULT_APPLIANCES,
 	tariffs: [DEFAULT_TARIFF],
@@ -37,6 +40,7 @@ const DEFAULTS: AppConfig = {
 /** Environment variables that override the config file, keyed by config path. */
 const ENV_OVERRIDES = {
 	inverterHost: 'INVERTER_HOST',
+	'forecast.evccUrl': 'EVCC_URL',
 	'solcast.apiKey': 'SOLCAST_API_KEY',
 	'solcast.resourceId': 'SOLCAST_RESOURCE_ID',
 	settingsPin: 'SETTINGS_PIN'
@@ -74,11 +78,13 @@ export function getConfig(): AppConfig {
 	const cfg: AppConfig = {
 		...DEFAULTS,
 		...file,
+		forecast: { ...DEFAULTS.forecast, ...file.forecast },
 		solcast: { ...DEFAULTS.solcast, ...file.solcast },
 		appliances: file.appliances?.length ? file.appliances : DEFAULTS.appliances,
 		tariffs: file.tariffs?.length ? file.tariffs : DEFAULTS.tariffs
 	};
 	if (env.INVERTER_HOST) cfg.inverterHost = env.INVERTER_HOST;
+	if (env.EVCC_URL) cfg.forecast.evccUrl = env.EVCC_URL;
 	if (env.SOLCAST_API_KEY) cfg.solcast.apiKey = env.SOLCAST_API_KEY;
 	if (env.SOLCAST_RESOURCE_ID) cfg.solcast.resourceId = env.SOLCAST_RESOURCE_ID;
 	if (env.SETTINGS_PIN) cfg.settingsPin = env.SETTINGS_PIN;

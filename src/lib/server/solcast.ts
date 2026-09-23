@@ -1,8 +1,11 @@
-// Solcast rooftop-site forecasts. The free hobbyist tier allows about 10 calls
-// a day, so fetches are spaced out through daylight and counted per day.
+// Solcast rooftop-site forecasts, fetched directly. The free hobbyist tier
+// allows about 10 calls a day per account, so fetches are spaced out through
+// daylight and counted per day. If evcc also uses the account, read the
+// forecast from evcc instead (see forecast.ts) so the two don't share the quota.
 import { localDate } from '$lib/tou';
+import type { ForecastSlot } from '$lib/types';
 import { getConfig } from './config';
-import { getDb, kvGet, kvSet } from './db';
+import { kvGet, kvSet } from './db';
 import { log } from './log';
 
 const MIN_GAP_MS = 110 * 60_000;
@@ -40,18 +43,19 @@ export function solcastStatus() {
 	};
 }
 
-export async function maybeFetchSolcast(force = false): Promise<void> {
+/** Fetch a forecast if the daily budget allows. Returns null when skipped or failed. */
+export async function maybeFetchSolcast(force = false): Promise<ForecastSlot[] | null> {
 	const { apiKey, resourceId } = getConfig().solcast;
-	if (!apiKey || !resourceId) return;
+	if (!apiKey || !resourceId) return null;
 	const now = Date.now();
 	const last = Number(kvGet('solcast_last_fetch') ?? 0);
 	const callsKey = `solcast_calls_${localDate(now)}`;
 	const calls = Number(kvGet(callsKey) ?? 0);
 	const hour = hobartHour(now);
 	if (!force) {
-		if (now - last < MIN_GAP_MS || calls >= MAX_CALLS_PER_DAY) return;
+		if (now - last < MIN_GAP_MS || calls >= MAX_CALLS_PER_DAY) return null;
 		// Overnight the forecast barely changes; save calls for daylight.
-		if ((hour < FIRST_HOUR || hour > LAST_HOUR) && now - last < 12 * 3600_000) return;
+		if ((hour < FIRST_HOUR || hour > LAST_HOUR) && now - last < 12 * 3600_000) return null;
 	}
 
 	kvSet(callsKey, String(calls + 1));
@@ -64,19 +68,13 @@ export async function maybeFetchSolcast(force = false): Promise<void> {
 		});
 		if (!res.ok) throw new Error(`Solcast ${res.status} ${res.statusText}`);
 		const slots = parseSolcast(await res.json());
-		const db = getDb();
-		const insert = db.prepare(
-			'INSERT OR REPLACE INTO forecast (period_end, pv_kw, fetched_at) VALUES (?, ?, ?)'
-		);
-		db.transaction(() => {
-			for (const s of slots) insert.run(s.periodEnd, s.pvKw, now);
-			db.prepare('DELETE FROM forecast WHERE period_end < ?').run(now - 2 * 86_400_000);
-		})();
 		kvSet('solcast_last_error', '');
 		log.info(`Solcast forecast updated (${slots.length} periods, call ${calls + 1} today)`);
+		return slots;
 	} catch (e) {
 		const msg = (e as Error).message;
 		kvSet('solcast_last_error', msg);
 		log.warn(`Solcast fetch failed: ${msg}`);
+		return null;
 	}
 }

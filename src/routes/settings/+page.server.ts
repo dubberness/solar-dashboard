@@ -3,7 +3,7 @@ import { isUnlocked, lock, refreshUnlock, unlock } from '$lib/server/auth';
 import { envLocked, getConfig, saveConfig, type AppConfig } from '$lib/server/config';
 import { getDb, kvGet } from '$lib/server/db';
 import { health } from '$lib/server/live';
-import { maybeFetchSolcast, solcastStatus } from '$lib/server/solcast';
+import { forecastStatus, refreshForecast, type ForecastSource } from '$lib/server/forecast';
 import { parseEnergyBalance, storeDaily } from '$lib/server/solarweb';
 import type { Appliance, Tariff } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
@@ -25,6 +25,8 @@ export const load: PageServerLoad = ({ cookies }) => {
 		unlocked: true as const,
 		config: {
 			inverterHost: cfg.inverterHost,
+			forecastSource: cfg.forecast.source,
+			evccUrl: cfg.forecast.evccUrl,
 			solcastResourceId: cfg.solcast.resourceId,
 			solcastKeySet: Boolean(cfg.solcast.apiKey),
 			appliances: cfg.appliances,
@@ -33,7 +35,7 @@ export const load: PageServerLoad = ({ cookies }) => {
 		locked: [...envLocked()],
 		status: {
 			inverter: health(),
-			solcast: solcastStatus(),
+			forecast: forecastStatus(),
 			archive: {
 				lastSync: Number(kvGet('archive_last_sync') ?? 0) || null,
 				lastError: kvGet('archive_last_error') || null
@@ -97,7 +99,22 @@ export const actions: Actions = {
 			}
 			if (!tariffs.length) throw new Error('Keep at least one set of rates');
 
-			const next: AppConfig = { ...cfg, appliances, tariffs, solcast: { ...cfg.solcast } };
+			const next: AppConfig = {
+				...cfg,
+				appliances,
+				tariffs,
+				forecast: { ...cfg.forecast },
+				solcast: { ...cfg.solcast }
+			};
+			const source = String(form.get('forecastSource') ?? cfg.forecast.source);
+			if (!['evcc', 'solcast', 'none'].includes(source)) throw new Error('Unknown forecast source');
+			next.forecast.source = source as ForecastSource;
+			if (!locked.has('forecast.evccUrl')) {
+				const url = String(form.get('evccUrl') ?? '').trim();
+				if (url && !/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(url))
+					throw new Error('evcc address should look like http://192.168.1.3:7070');
+				next.forecast.evccUrl = url;
+			}
 			if (!locked.has('inverterHost')) {
 				const host = String(form.get('inverterHost') ?? '').trim();
 				if (!/^[\w.-]+(:\d+)?$/.test(host)) throw new Error('Inverter address looks wrong');
@@ -115,6 +132,8 @@ export const actions: Actions = {
 			}
 			saveConfig(next);
 			if (pin) refreshUnlock(cookies);
+			// Pick up a new source or address straight away rather than on the next tick.
+			void refreshForecast(true);
 		} catch (e) {
 			return fail(400, { error: (e as Error).message });
 		}
@@ -135,9 +154,9 @@ export const actions: Actions = {
 	refreshForecast: async ({ cookies }) => {
 		const denied = guard(cookies);
 		if (denied) return denied;
-		await maybeFetchSolcast(true);
-		const s = solcastStatus();
-		if (s.lastError) return fail(502, { error: `Solcast: ${s.lastError}` });
+		await refreshForecast(true);
+		const s = forecastStatus();
+		if (s.lastError) return fail(502, { error: `Forecast: ${s.lastError}` });
 		return { forecastRefreshed: true };
 	},
 

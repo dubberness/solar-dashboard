@@ -2,7 +2,7 @@ import { syncArchive } from './archive';
 import { getConfig } from './config';
 import { purgeOldReadings, pollOnce } from './live';
 import { log } from './log';
-import { maybeFetchSolcast } from './solcast';
+import { refreshForecast } from './forecast';
 
 const g = globalThis as unknown as { __solarScheduler?: boolean };
 
@@ -27,7 +27,7 @@ export function startBackgroundJobs(): void {
 			setInterval(run, ms);
 		}, initialDelay);
 	};
-	every(5 * 60_000, () => maybeFetchSolcast(), 3_000);
+	every(5 * 60_000, () => refreshForecast(), 3_000);
 	every(60 * 60_000, syncArchive, 10_000);
 	every(24 * 60 * 60_000, purgeOldReadings, 60_000);
 }
