@@ -58,6 +58,10 @@ export function openDb(file: string): Database.Database {
 	d.pragma('journal_mode = WAL');
 	d.pragma('synchronous = NORMAL');
 	d.exec(SCHEMA);
+	// Columns added after the first release.
+	const readingCols = d.prepare('PRAGMA table_info(readings)').all() as Array<{ name: string }>;
+	if (!readingCols.some((c) => c.name === 'car_w'))
+		d.exec('ALTER TABLE readings ADD COLUMN car_w REAL');
 	return d;
 }
 

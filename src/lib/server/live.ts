@@ -6,7 +6,7 @@ import type { CarMode, ForecastSlot, LiveReading, Snapshot } from '$lib/types';
 import { getConfig } from './config';
 import { getDb } from './db';
 import { carNow } from './evcc';
-import { readLive } from './fronius';
+import { inverterClockSkewMs, readLive } from './fronius';
 import { tessieCarW } from './tessie';
 import { log } from './log';
 
@@ -41,7 +41,8 @@ export function health() {
 	return {
 		lastReading: state.lastOk || null,
 		lastError: state.lastError,
-		stale: Date.now() - state.lastOk > STALE_AFTER
+		stale: Date.now() - state.lastOk > STALE_AFTER,
+		clockSkewMs: inverterClockSkewMs()
 	};
 }
 
@@ -95,8 +96,8 @@ function carSummary(r: LiveReading, now: number): { kw: number; mode: CarMode } 
 function record(r: LiveReading): void {
 	const db = getDb();
 	db.prepare(
-		'INSERT OR REPLACE INTO readings (ts, pv_w, grid_w, load_w, import_wh, export_wh) VALUES (?, ?, ?, ?, ?, ?)'
-	).run(r.ts, r.pvW, r.gridW, r.loadW, r.importWh, r.exportWh);
+		'INSERT OR REPLACE INTO readings (ts, pv_w, grid_w, load_w, import_wh, export_wh, car_w) VALUES (?, ?, ?, ?, ?, ?, ?)'
+	).run(r.ts, r.pvW, r.gridW, r.loadW, r.importWh, r.exportWh, r.carW ?? null);
 
 	recent.push(r);
 	while (recent.length && recent[0].ts < r.ts - 15 * MIN) recent.shift();
@@ -238,9 +239,34 @@ export function snapshot(now = Date.now()): Snapshot {
 	};
 }
 
-/** Recent raw readings for the "today" chart's live tail. */
-export function recentReadings(): LiveReading[] {
-	return [...recent];
+/** Raw readings (every poll) since a time, for the realtime chart. House use leaves the car out. */
+export function readingsSince(from: number) {
+	const rows = getDb()
+		.prepare('SELECT ts, pv_w, load_w, car_w FROM readings WHERE ts >= ? ORDER BY ts')
+		.all(from) as Array<{ ts: number; pv_w: number; load_w: number; car_w: number | null }>;
+	return rows.map((r) => ({
+		ts: r.ts,
+		pvKw: r.pv_w / 1000,
+		useKw: Math.max(0, r.load_w - (r.car_w ?? 0)) / 1000,
+		carKw: (r.car_w ?? 0) / 1000
+	}));
+}
+
+/**
+ * The 5-minute interval still being filled, averaged so far, so the Today chart
+ * reaches the present instead of stopping at the last finished interval.
+ */
+export function openInterval() {
+	const b = state.bucket;
+	if (!b?.readings.length) return null;
+	const mean = (f: (r: LiveReading) => number) =>
+		b.readings.reduce((s, r) => s + f(r), 0) / b.readings.length / 1000;
+	return {
+		ts: b.start,
+		pvKw: mean((r) => r.pvW),
+		useKw: mean((r) => Math.max(0, r.loadW - (r.carW ?? 0))),
+		peak: isPeak(b.start + BUCKET / 2)
+	};
 }
 
 export function purgeOldReadings(): void {

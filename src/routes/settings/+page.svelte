@@ -228,6 +228,14 @@
 							? `: ${data.status.inverter.lastError}`
 							: ''}
 					{:else}
+						{#if Math.abs(data.status.inverter.clockSkewMs ?? 0) >= 2 * 60_000}
+							<span class="text-[var(--okay-icon)]"
+								>Inverter clock is {Math.round(
+									Math.abs(data.status.inverter.clockSkewMs!) / 60_000
+								)} min {data.status.inverter.clockSkewMs! > 0 ? 'fast' : 'slow'}; history times are
+								being corrected.</span
+							>
+						{/if}
 						Last reading {ago(data.status.inverter.lastReading)}
 					{/if}
 					· Archive synced {ago(data.status.archive.lastSync)}{data.status.archive.lastError

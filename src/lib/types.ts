@@ -70,3 +70,12 @@ export interface Snapshot {
 	cards: CardVerdict[];
 	forecastAvailable: boolean;
 }
+
+/** One poll's worth of readings for the realtime chart. */
+export interface RealtimePoint {
+	ts: number;
+	pvKw: number;
+	/** House use, not counting the car. */
+	useKw: number;
+	carKw: number;
+}

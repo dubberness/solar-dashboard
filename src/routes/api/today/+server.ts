@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { getDb } from '$lib/server/db';
 import { addDays, daySeries } from '$lib/server/history';
+import { openInterval } from '$lib/server/live';
 import { localDate, localMidnight } from '$lib/tou';
 
 export const GET = () => {
@@ -13,15 +14,18 @@ export const GET = () => {
 		period_end: number;
 		pv_kw: number;
 	}>;
+	// The dashboard's "House using" line leaves the car out, like the Using tile.
+	const series = daySeries(date).map(({ carKw, ...r }) => ({
+		...r,
+		useKw: Math.max(0, r.useKw - carKw)
+	}));
+	const open = openInterval();
+	if (open && open.ts > (series.at(-1)?.ts ?? 0)) series.push(open);
 	return json({
 		date,
 		dayStart: localMidnight(date),
 		dayEnd: localMidnight(addDays(date, 1)),
-		// The dashboard's "House using" line leaves the car out, like the Using tile.
-		series: daySeries(date).map(({ carKw, ...r }) => ({
-			...r,
-			useKw: Math.max(0, r.useKw - carKw)
-		})),
+		series,
 		// Plot each 30-minute forecast at its midpoint.
 		forecast: forecast.map((f) => ({ ts: f.period_end - 15 * 60_000, pvKw: f.pv_kw }))
 	});

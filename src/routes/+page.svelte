@@ -2,9 +2,12 @@
 	import { onMount } from 'svelte';
 	import ApplianceCard from '$lib/components/ApplianceCard.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import RealtimeChart from '$lib/components/RealtimeChart.svelte';
 	import TodayChart from '$lib/components/TodayChart.svelte';
 	import { HOBART_TZ } from '$lib/tou';
-	import type { Snapshot } from '$lib/types';
+	import type { RealtimePoint, Snapshot } from '$lib/types';
+
+	const RECENT_MS = 30 * 60_000;
 
 	let { data } = $props();
 
@@ -16,6 +19,8 @@
 		forecast: Array<{ ts: number; pvKw: number }>;
 	} | null = $state(null);
 	let clock = $state(Date.now());
+	let recent: RealtimePoint[] = $state([]);
+	const carInRecent = $derived(recent.some((p) => p.carKw > 0.1));
 
 	const kw = (v: number) => `${Math.max(0, v).toFixed(1)} kW`;
 	const dateText = $derived(
@@ -30,6 +35,28 @@
 			.toLowerCase()
 			.replace(/^\w/, (c) => c.toUpperCase())
 	);
+
+	async function loadRecent() {
+		try {
+			const res = await fetch('/api/recent');
+			if (res.ok) recent = await res.json();
+		} catch {
+			// keep what we have
+		}
+	}
+
+	function addLive(s: Snapshot) {
+		if (!s.live || s.stale) return;
+		const last = recent.at(-1);
+		if (last && s.now <= last.ts) return;
+		const point = {
+			ts: s.now,
+			pvKw: s.live.pvKw,
+			useKw: s.live.loadKw,
+			carKw: s.live.car?.kw ?? 0
+		};
+		recent = [...recent.filter((p) => p.ts >= s.now - RECENT_MS), point];
+	}
 
 	async function loadToday() {
 		try {
@@ -48,6 +75,7 @@
 			es.onmessage = (e) => {
 				snap = JSON.parse(e.data);
 				clock = Date.now();
+				addLive(snap);
 			};
 		};
 		const disconnect = () => {
@@ -57,18 +85,19 @@
 		// Only stream while someone is looking; iPads suspend background tabs anyway.
 		const onVisible = () => {
 			if (document.visibilityState === 'visible') {
-				connect();
+				// Catch up on what happened while the screen was off, then stream.
+				loadRecent().then(connect);
 				loadToday();
 			} else {
 				disconnect();
 			}
 		};
-		connect();
+		loadRecent().then(connect);
 		loadToday();
 		document.addEventListener('visibilitychange', onVisible);
 		const chartTimer = setInterval(
 			() => document.visibilityState === 'visible' && loadToday(),
-			5 * 60_000
+			60_000
 		);
 		const clockTimer = setInterval(() => (clock = Date.now()), 30_000);
 		return () => {
@@ -131,6 +160,26 @@
 			{/if}
 		</p>
 	{/if}
+
+	<section class="rounded-2xl bg-[var(--surface-2)] px-3 pt-4 pb-2 sm:px-5">
+		<div class="flex flex-wrap items-baseline justify-between gap-2 px-1">
+			<h2 class="text-lg font-medium">Last 30 minutes</h2>
+			<div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-secondary)] sm:text-base">
+				<span class="flex items-center gap-1.5"
+					><span class="h-[3px] w-4 rounded bg-[var(--series-solar)]"></span>Solar</span
+				>
+				<span class="flex items-center gap-1.5"
+					><span class="h-[3px] w-4 rounded bg-[var(--series-use)]"></span>House using</span
+				>
+				{#if carInRecent}
+					<span class="flex items-center gap-1.5"
+						><span class="h-[3px] w-4 rounded bg-[var(--series-car)]"></span>Car charging</span
+					>
+				{/if}
+			</div>
+		</div>
+		<RealtimeChart points={recent} now={clock} windowMs={RECENT_MS} />
+	</section>
 
 	<section class="rounded-2xl bg-[var(--surface-2)] px-3 pt-4 pb-2 sm:px-5">
 		<div class="flex flex-wrap items-baseline justify-between gap-2 px-1">

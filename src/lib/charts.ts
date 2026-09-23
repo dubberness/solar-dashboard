@@ -30,6 +30,7 @@ export function themeColors() {
 		use: v('--series-use'),
 		peak: v('--series-peak'),
 		export: v('--series-export'),
+		car: v('--series-car'),
 		text: v('--text-primary'),
 		textSecondary: v('--text-secondary'),
 		muted: v('--text-muted'),

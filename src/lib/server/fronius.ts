@@ -31,14 +31,21 @@ export function parseMeter(body: any): { importWh: number; exportWh: number } | 
 	};
 }
 
+/** How far the inverter's clock is ahead of ours, from the latest live poll. */
+let clockSkewMs: number | null = null;
+export const inverterClockSkewMs = () => clockSkewMs;
+
 export async function readLive(host: string): Promise<LiveReading> {
 	const [flow, meter] = await Promise.all([
 		getJson(`http://${host}/solar_api/v1/GetPowerFlowRealtimeData.fcgi`),
 		getJson(`http://${host}/solar_api/v1/GetMeterRealtimeData.cgi?Scope=System`).catch(() => null)
 	]);
 	const counters = meter ? parseMeter(meter) : null;
+	const now = Date.now();
+	const inverterTime = Date.parse(flow?.Head?.Timestamp ?? '');
+	if (Number.isFinite(inverterTime)) clockSkewMs = inverterTime - now;
 	return {
-		ts: Date.now(),
+		ts: now,
 		...parsePowerFlow(flow),
 		importWh: counters?.importWh ?? null,
 		exportWh: counters?.exportWh ?? null
