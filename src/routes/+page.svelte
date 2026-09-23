@@ -25,6 +25,34 @@
 	const carToday = $derived(today?.series.some((p) => (p.carKw ?? 0) > 0.1) ?? false);
 
 	const kw = (v: number) => `${Math.max(0, v).toFixed(1)} kW`;
+	const n = (v: number) => Math.max(0, v).toFixed(1);
+
+	// "Using" is everything on the meter, split into house and car when the car is
+	// charging. "Spare" counts the part of the car's charging that evcc would give up.
+	const stats = $derived.by(() => {
+		const live = snap.live;
+		const car = live?.car ?? null;
+		return [
+			{ label: 'Making', icon: 'sun', value: live?.pvKw ?? null, sub: null },
+			{
+				label: 'Using',
+				icon: 'home',
+				value: live ? live.loadKw + (car?.kw ?? 0) : null,
+				sub: live && car ? `House ${n(live.loadKw)} + car ${n(car.kw)}` : null
+			},
+			{
+				label: 'Spare',
+				icon: 'spare',
+				value: live?.spareKw ?? null,
+				sub:
+					car?.mode === 'pv'
+						? 'The car will make room'
+						: car?.mode === 'minpv'
+							? 'The car will slow down'
+							: null
+			}
+		] as const;
+	});
 	const dateText = $derived(
 		new Intl.DateTimeFormat('en-AU', {
 			timeZone: HOBART_TZ,
@@ -133,7 +161,7 @@
 	</div>
 
 	<div class="grid grid-cols-3 gap-3">
-		{#each [{ label: 'Making', icon: 'sun', value: snap.live?.pvKw }, { label: 'Using', icon: 'home', value: snap.live?.loadKw }, { label: 'Spare', icon: 'spare', value: snap.live?.spareKw }] as stat (stat.label)}
+		{#each stats as stat (stat.label)}
 			<div class="rounded-2xl bg-[var(--surface-2)] px-4 py-3 sm:px-5 sm:py-4">
 				<div class="flex items-center gap-1.5 text-base text-[var(--text-secondary)] sm:text-lg">
 					<Icon name={stat.icon as 'sun'} size={20} />{stat.label}
@@ -141,6 +169,11 @@
 				<div class="tabular text-2xl font-semibold whitespace-nowrap sm:text-4xl">
 					{stat.value == null ? '–' : kw(stat.value)}
 				</div>
+				{#if stat.sub}
+					<div class="mt-0.5 text-sm leading-snug text-[var(--text-secondary)] sm:text-base">
+						{stat.sub}
+					</div>
+				{/if}
 			</div>
 		{/each}
 	</div>
