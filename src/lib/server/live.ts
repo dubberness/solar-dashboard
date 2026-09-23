@@ -7,12 +7,15 @@ import { getConfig } from './config';
 import { getDb } from './db';
 import { carNow } from './evcc';
 import { readLive } from './fronius';
+import { tessieCarW } from './tessie';
 import { log } from './log';
 
 const MIN = 60_000;
 const BUCKET = 5 * MIN;
 const STALE_AFTER = 2 * MIN;
 const AVG_WINDOW = 5 * MIN;
+/** The house never uses less than about this, so the car can't be all of the metered load. */
+const HOUSE_FLOOR_W = 300;
 
 interface LiveState {
 	recent: LiveReading[];
@@ -51,8 +54,9 @@ export async function pollOnce(): Promise<void> {
 	const cfg = getConfig();
 	try {
 		const r = await readLive(cfg.inverterHost);
-		const car = carNow(r.ts);
-		record({ ...r, carW: car?.chargingW ?? null, carFlexW: car?.flexibleW ?? null });
+		const carW = carPower(r);
+		const keepW = carNow(r.ts)?.keepW ?? 0;
+		record({ ...r, carW, carFlexW: carW === null ? null : Math.max(0, carW - keepW) });
 		state.lastOk = r.ts;
 		if (state.lastError) log.info('Inverter readings resumed');
 		state.lastError = null;
@@ -65,6 +69,21 @@ export async function pollOnce(): Promise<void> {
 		const snap = snapshot();
 		for (const fn of listeners) fn(snap);
 	}
+}
+
+/**
+ * What the car is drawing, in watts, or null when evcc isn't answering. The
+ * car's own measurement (via Tessie) wins. Otherwise use what evcc offers the
+ * car, which can be more than it takes: the car is on the metered circuit, so
+ * cap that at the load less the house's background use.
+ */
+function carPower(r: LiveReading): number | null {
+	const car = carNow(r.ts);
+	if (!car) return null;
+	if (car.chargingW <= 0) return 0;
+	const measured = tessieCarW(r.ts);
+	if (measured !== null) return Math.min(measured, r.loadW);
+	return Math.min(car.chargingW, Math.max(0, r.loadW - HOUSE_FLOOR_W));
 }
 
 function record(r: LiveReading): void {

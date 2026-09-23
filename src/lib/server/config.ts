@@ -10,6 +10,8 @@ export interface AppConfig {
 	pollSeconds: number;
 	forecast: { source: ForecastSource; evccUrl: string };
 	solcast: { apiKey: string; resourceId: string };
+	/** Optional: the car's measured charging power, instead of estimating it from evcc. */
+	tessie: { token: string };
 	appliances: Appliance[];
 	tariffs: Tariff[];
 	settingsPin: string;
@@ -32,6 +34,7 @@ const DEFAULTS: AppConfig = {
 	pollSeconds: 5,
 	forecast: { source: 'evcc', evccUrl: '' },
 	solcast: { apiKey: '', resourceId: '' },
+	tessie: { token: '' },
 	appliances: DEFAULT_APPLIANCES,
 	tariffs: [DEFAULT_TARIFF],
 	settingsPin: '0000'
@@ -43,6 +46,7 @@ const ENV_OVERRIDES = {
 	'forecast.evccUrl': 'EVCC_URL',
 	'solcast.apiKey': 'SOLCAST_API_KEY',
 	'solcast.resourceId': 'SOLCAST_RESOURCE_ID',
+	'tessie.token': 'TESSIE_TOKEN',
 	settingsPin: 'SETTINGS_PIN'
 } as const;
 
@@ -80,6 +84,7 @@ export function getConfig(): AppConfig {
 		...file,
 		forecast: { ...DEFAULTS.forecast, ...file.forecast },
 		solcast: { ...DEFAULTS.solcast, ...file.solcast },
+		tessie: { ...DEFAULTS.tessie, ...file.tessie },
 		appliances: file.appliances?.length ? file.appliances : DEFAULTS.appliances,
 		tariffs: file.tariffs?.length ? file.tariffs : DEFAULTS.tariffs
 	};
@@ -87,6 +92,7 @@ export function getConfig(): AppConfig {
 	if (env.EVCC_URL) cfg.forecast.evccUrl = env.EVCC_URL;
 	if (env.SOLCAST_API_KEY) cfg.solcast.apiKey = env.SOLCAST_API_KEY;
 	if (env.SOLCAST_RESOURCE_ID) cfg.solcast.resourceId = env.SOLCAST_RESOURCE_ID;
+	if (env.TESSIE_TOKEN) cfg.tessie.token = env.TESSIE_TOKEN;
 	if (env.SETTINGS_PIN) cfg.settingsPin = env.SETTINGS_PIN;
 	cached = cfg;
 	return cfg;

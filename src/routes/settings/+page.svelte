@@ -327,6 +327,35 @@
 					<button class="btn self-start" formaction="?/refreshForecast">Refresh forecast now</button
 					>
 				{/if}
+				<label>
+					Tessie API token (optional)
+					<input
+						class="field"
+						name="tessieToken"
+						type="password"
+						autocomplete="off"
+						placeholder={data.config.tessieTokenSet
+							? 'Saved. Leave blank to keep it.'
+							: 'Paste a token from Tessie → Settings → API'}
+						disabled={isLocked('tessie.token')}
+					/>
+				</label>
+				{#if data.config.tessieTokenSet && !isLocked('tessie.token')}
+					<label class="!flex-row items-center gap-2"
+						><input type="checkbox" name="tessieClearToken" /> Remove saved token</label
+					>
+				{/if}
+				<p class="hint">
+					{#if !data.status.tessie.configured}
+						Without Tessie, the car’s charging power is estimated from evcc and the meter.
+					{:else if data.status.tessie.lastError}
+						Tessie: {data.status.tessie.lastError}. Using the estimate for now.
+					{:else if data.status.tessie.measuredAt}
+						Car charging power measured by the car {ago(data.status.tessie.measuredAt)}.
+					{:else}
+						Tessie is asked only while evcc says the car is charging.
+					{/if}
+				</p>
 				{#if data.locked.length}
 					<p class="hint">Greyed-out fields are set by the container’s environment variables.</p>
 				{/if}

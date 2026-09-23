@@ -6,13 +6,14 @@ import { log } from './log';
 
 /** Readings older than this are ignored, so a stopped evcc never inflates "spare". */
 const FRESH_MS = 90_000;
-const VOLTS = 230;
+/** A 15 A powerpoint gives about 3.6 kW, so about 240 V at the car. */
+const VOLTS = 240;
 
 export interface CarPower {
-	/** Everything the car(s) are drawing right now. */
+	/** evcc's estimate of what the car(s) are drawing. */
 	chargingW: number;
-	/** The part evcc would give up if the house needed it. */
-	flexibleW: number;
+	/** How much of the charge evcc keeps going even without spare solar. */
+	keepW: number;
 }
 
 interface CarState extends CarPower {
@@ -23,6 +24,11 @@ const g = globalThis as unknown as { __solarCar?: { last: CarState | null; error
 const state = (g.__solarCar ??= { last: null, error: null });
 
 /**
+ * The Tesla reports its charging power rounded to whole kW and often minutes
+ * old, so use the current evcc is offering instead: in pv mode evcc changes it
+ * every 30 seconds and the car follows within seconds. The car can take less
+ * than it's offered, so live.ts also caps this by what the meter sees.
+ *
  * "pv": solar only, so the whole charge can be given up.
  * "minpv": keeps at least the minimum current, so only the part above it is flexible.
  * "now", or a charging plan: charges regardless, so none of it is.
@@ -30,19 +36,18 @@ const state = (g.__solarCar ??= { last: null, error: null });
 export function parseEvccCar(body: any): CarPower {
 	const site = body?.result ?? body;
 	let chargingW = 0;
-	let flexibleW = 0;
+	let keepW = 0;
 	for (const lp of site?.loadpoints ?? []) {
-		const power = Number(lp?.chargePower) || 0;
-		if (!lp?.charging || power <= 0) continue;
+		if (!lp?.charging) continue;
+		const phases = Number(lp.phasesActive) || 1;
+		const offeredA = Number(lp.offeredCurrent) || 0;
+		const power = offeredA > 0 ? offeredA * VOLTS * phases : Number(lp.chargePower) || 0;
+		if (power <= 0) continue;
 		chargingW += power;
-		if (lp.planActive) continue;
-		if (lp.mode === 'pv') flexibleW += power;
-		else if (lp.mode === 'minpv') {
-			const minW = (Number(lp.minCurrent) || 6) * VOLTS * (Number(lp.phasesActive) || 1);
-			flexibleW += Math.max(0, power - minW);
-		}
+		if (lp.planActive || (lp.mode !== 'pv' && lp.mode !== 'minpv')) keepW = Infinity;
+		else if (lp.mode === 'minpv') keepW += (Number(lp.minCurrent) || 6) * VOLTS * phases;
 	}
-	return { chargingW, flexibleW };
+	return { chargingW, keepW };
 }
 
 export async function pollEvccCar(): Promise<void> {
@@ -65,5 +70,5 @@ export async function pollEvccCar(): Promise<void> {
 export function carNow(now = Date.now()): CarPower | null {
 	const last = state.last;
 	if (!last || now - last.ts > FRESH_MS) return null;
-	return { chargingW: last.chargingW, flexibleW: last.flexibleW };
+	return { chargingW: last.chargingW, keepW: last.keepW };
 }

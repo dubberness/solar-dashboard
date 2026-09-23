@@ -45,8 +45,12 @@
           Type="Variable" Display="always" Required="false" Mask="false">192.168.1.8</Config>
 
   <Config Name="evcc address" Target="EVCC_URL" Default="http://192.168.1.3:7070"
-          Description="evcc base URL. The dashboard reads evcc's solar forecast from it, so it needs no Solcast calls of its own."
+          Description="evcc base URL. The dashboard reads the solar forecast (so it needs no Solcast calls of its own) and the car's charging mode from it."
           Type="Variable" Display="always" Required="false" Mask="false">http://192.168.1.3:7070</Config>
+
+  <Config Name="Tessie API token" Target="TESSIE_TOKEN" Default=""
+          Description="Optional. Lets the dashboard read the car's measured charging power instead of estimating it from evcc. Create one in Tessie under Settings, API."
+          Type="Variable" Display="always" Required="false" Mask="true"></Config>
 
   <Config Name="Solcast API key" Target="SOLCAST_API_KEY" Default=""
           Description="Only if you don't use evcc. Shares your Solcast account's ~10 calls a day."

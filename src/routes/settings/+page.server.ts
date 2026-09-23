@@ -5,6 +5,7 @@ import { getDb, kvGet } from '$lib/server/db';
 import { health } from '$lib/server/live';
 import { forecastStatus, refreshForecast, type ForecastSource } from '$lib/server/forecast';
 import { parseEnergyBalance, storeDaily } from '$lib/server/solarweb';
+import { tessieStatus } from '$lib/server/tessie';
 import type { Appliance, Tariff } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -29,6 +30,7 @@ export const load: PageServerLoad = ({ cookies }) => {
 			evccUrl: cfg.forecast.evccUrl,
 			solcastResourceId: cfg.solcast.resourceId,
 			solcastKeySet: Boolean(cfg.solcast.apiKey),
+			tessieTokenSet: Boolean(cfg.tessie.token),
 			appliances: cfg.appliances,
 			tariffs: [...cfg.tariffs].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
 		},
@@ -36,6 +38,7 @@ export const load: PageServerLoad = ({ cookies }) => {
 		status: {
 			inverter: health(),
 			forecast: forecastStatus(),
+			tessie: tessieStatus(),
 			archive: {
 				lastSync: Number(kvGet('archive_last_sync') ?? 0) || null,
 				lastError: kvGet('archive_last_error') || null
@@ -104,7 +107,8 @@ export const actions: Actions = {
 				appliances,
 				tariffs,
 				forecast: { ...cfg.forecast },
-				solcast: { ...cfg.solcast }
+				solcast: { ...cfg.solcast },
+				tessie: { ...cfg.tessie }
 			};
 			const source = String(form.get('forecastSource') ?? cfg.forecast.source);
 			if (!['evcc', 'solcast', 'none'].includes(source)) throw new Error('Unknown forecast source');
@@ -125,6 +129,9 @@ export const actions: Actions = {
 			const key = String(form.get('solcastApiKey') ?? '').trim();
 			if (!locked.has('solcast.apiKey') && key) next.solcast.apiKey = key;
 			if (!locked.has('solcast.apiKey') && form.get('solcastClearKey')) next.solcast.apiKey = '';
+			const tessieToken = String(form.get('tessieToken') ?? '').trim();
+			if (!locked.has('tessie.token') && tessieToken) next.tessie.token = tessieToken;
+			if (!locked.has('tessie.token') && form.get('tessieClearToken')) next.tessie.token = '';
 			const pin = String(form.get('newPin') ?? '').trim();
 			if (pin && !locked.has('settingsPin')) {
 				if (!/^\d{4,8}$/.test(pin)) throw new Error('PIN must be 4 to 8 digits');
