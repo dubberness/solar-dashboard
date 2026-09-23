@@ -141,7 +141,12 @@ export function decide(appliance: Appliance, input: DecisionInput): CardVerdict 
 			// Nothing at peak. Warn if starting a little later would be too late.
 			const firstBad = scan(nextQuarter, 3, quarter, (t) => colourAt(t) !== 'go');
 			if (firstBad !== null) {
-				detail = `Start by ${formatTime(firstBad - quarter, now)} to beat peak`;
+				// A long cycle started at the last moment can still run into peak, just on sunshine.
+				const lastStart = firstBad - quarter;
+				const intoPeak = estimateCycle(lastStart, appliance, spareAt).peakMinutes > 0;
+				detail = intoPeak
+					? `Start by ${formatTime(lastStart, now)} so sunshine covers the peak part`
+					: `Start by ${formatTime(lastStart, now)} to beat peak`;
 			} else if (isPeak(now)) {
 				detail = 'Plenty of sunshine for a full load';
 			} else {

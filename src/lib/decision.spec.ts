@@ -61,6 +61,16 @@ describe('decide', () => {
 		expect(v.detail).toBe('Start by 2:30pm to beat peak');
 	});
 
+	it('says sunshine covers the end when a long cycle can run into peak', () => {
+		// 11:45am, 4-hour dryer, 3 kW of sun until 5pm. Starting at 1pm ends at
+		// 5pm: the last hour is at peak but on sunshine. Any later runs past sunset.
+		const now = aest(2026, 9, 23, 11, 45);
+		const fc = forecast(now - 3600e3, 12, (t) => (t < aest(2026, 9, 23, 17) ? 3 : 0));
+		const v = decide({ ...dryer, cycleHours: 4 }, base(now, 2.5, fc));
+		expect(v.state).toBe('go');
+		expect(v.detail).toBe('Start by 1pm so sunshine covers the peak part');
+	});
+
 	it('is green at peak when forecast solar covers the whole cycle', () => {
 		const now = aest(2026, 9, 23, 16);
 		const fc = forecast(now - 3600e3, 12, () => 4); // 4 kW PV, 0.5 kW base load
