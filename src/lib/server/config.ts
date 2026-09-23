@@ -3,6 +3,7 @@ import path from 'node:path';
 import { env } from '$env/dynamic/private';
 import { DEFAULT_TARIFF } from '$lib/costing';
 import type { Appliance, Tariff } from '$lib/types';
+import type { ClockCorrection } from './archive';
 import type { ForecastSource } from './forecast';
 
 export interface AppConfig {
@@ -14,6 +15,8 @@ export interface AppConfig {
 	tessie: { token: string };
 	appliances: Appliance[];
 	tariffs: Tariff[];
+	/** Periods the inverter's clock was wrong, applied to its archive. */
+	clockCorrections: ClockCorrection[];
 	settingsPin: string;
 }
 
@@ -37,6 +40,7 @@ const DEFAULTS: AppConfig = {
 	tessie: { token: '' },
 	appliances: DEFAULT_APPLIANCES,
 	tariffs: [DEFAULT_TARIFF],
+	clockCorrections: [],
 	settingsPin: '0000'
 };
 

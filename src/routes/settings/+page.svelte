@@ -11,6 +11,15 @@
 		if (s < 172800) return `${Math.round(s / 3600)} h ago`;
 		return `${Math.round(s / 86400)} days ago`;
 	};
+	const whenText = (ts: number) =>
+		new Intl.DateTimeFormat('en-AU', {
+			timeZone: 'Australia/Hobart',
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit'
+		}).format(ts);
 	const isLocked = (key: string) => data.unlocked && data.locked.includes(key);
 	let busy = $state(false);
 	const submit = () => {
@@ -242,6 +251,53 @@
 						? ` (error: ${data.status.archive.lastError})`
 						: ''}
 				</p>
+				<details class="flex flex-col gap-3" open={data.config.clockCorrections.length > 0}>
+					<summary class="cursor-pointer text-sm text-[var(--text-secondary)]"
+						>Inverter clock was wrong?</summary
+					>
+					<div class="mt-3 flex flex-col gap-3">
+						<p class="hint">
+							The inverter stamps its history with its own clock. If that clock was wrong and has
+							since been set right, record it here and the history is re-read from the inverter with
+							the times corrected. This takes about half an hour.
+						</p>
+						{#each data.config.clockCorrections as c, i (c.until)}
+							<div class="flex flex-wrap items-center gap-3">
+								<span
+									>{Math.abs(c.minutesFast)} min {c.minutesFast > 0 ? 'fast' : 'slow'} until {whenText(
+										c.until
+									)}</span
+								>
+								<button class="btn" formaction="?/removeClockCorrection" name="clockIndex" value={i}
+									>Remove</button
+								>
+							</div>
+						{/each}
+						<div class="flex flex-wrap items-end gap-3">
+							<label class="w-24">
+								Minutes
+								<input class="field" name="clockMinutes" type="number" min="1" max="720" />
+							</label>
+							<label class="w-28">
+								<span>&nbsp;</span>
+								<select class="field" name="clockDirection">
+									<option value="fast">fast</option>
+									<option value="slow">slow</option>
+								</select>
+							</label>
+							<label>
+								Until it was set right at
+								<input class="field" name="clockUntil" type="datetime-local" />
+							</label>
+						</div>
+						<button class="btn self-start" formaction="?/correctClock">Correct the history</button>
+						{#if data.status.archive.rebuilding}
+							<p class="hint">Re-reading history from the inverter…</p>
+						{:else if data.status.archive.rebuiltAt}
+							<p class="hint">History re-read {ago(data.status.archive.rebuiltAt)}.</p>
+						{/if}
+					</div>
+				</details>
 				<fieldset class="flex flex-col gap-2">
 					<span class="text-sm text-[var(--text-secondary)]">Solar forecast from</span>
 					<label class="!flex-row items-center gap-2 !text-base !text-[var(--text-primary)]">

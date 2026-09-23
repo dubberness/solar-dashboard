@@ -1,11 +1,13 @@
 import { fail } from '@sveltejs/kit';
 import { isUnlocked, lock, refreshUnlock, unlock } from '$lib/server/auth';
 import { envLocked, getConfig, saveConfig, type AppConfig } from '$lib/server/config';
-import { getDb, kvGet } from '$lib/server/db';
+import { archiveStatus, requestRebuild } from '$lib/server/archive';
+import { getDb } from '$lib/server/db';
 import { health } from '$lib/server/live';
 import { forecastStatus, refreshForecast, type ForecastSource } from '$lib/server/forecast';
 import { parseEnergyBalance, storeDaily } from '$lib/server/solarweb';
 import { tessieStatus } from '$lib/server/tessie';
+import { localMidnight } from '$lib/tou';
 import type { Appliance, Tariff } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -32,17 +34,15 @@ export const load: PageServerLoad = ({ cookies }) => {
 			solcastKeySet: Boolean(cfg.solcast.apiKey),
 			tessieTokenSet: Boolean(cfg.tessie.token),
 			appliances: cfg.appliances,
-			tariffs: [...cfg.tariffs].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+			tariffs: [...cfg.tariffs].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom)),
+			clockCorrections: cfg.clockCorrections
 		},
 		locked: [...envLocked()],
 		status: {
 			inverter: health(),
 			forecast: forecastStatus(),
 			tessie: tessieStatus(),
-			archive: {
-				lastSync: Number(kvGet('archive_last_sync') ?? 0) || null,
-				lastError: kvGet('archive_last_error') || null
-			},
+			archive: archiveStatus(),
 			counts
 		}
 	};
@@ -156,6 +156,41 @@ export const actions: Actions = {
 		)[0];
 		const today = new Date().toISOString().slice(0, 10);
 		saveConfig({ ...cfg, tariffs: [...cfg.tariffs, { ...latest, effectiveFrom: today }] });
+	},
+
+	correctClock: async ({ request, cookies }) => {
+		const denied = guard(cookies);
+		if (denied) return denied;
+		const form = await request.formData();
+		try {
+			const minutes = num(form, 'clockMinutes', 1, 720);
+			const sign = form.get('clockDirection') === 'slow' ? -1 : 1;
+			const m = String(form.get('clockUntil') ?? '').match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/);
+			if (!m) throw new Error('Enter when the clock was set right');
+			// Hobart time, as typed.
+			const until = localMidnight(m[1]) + Number(m[2]) * 3600_000 + Number(m[3]) * 60_000;
+			if (until > Date.now() + 5 * 60_000) throw new Error('That time is in the future');
+			const cfg = getConfig();
+			saveConfig({
+				...cfg,
+				clockCorrections: [...cfg.clockCorrections, { until, minutesFast: sign * minutes }]
+			});
+			requestRebuild();
+		} catch (e) {
+			return fail(400, { error: (e as Error).message });
+		}
+		return { clockCorrected: true };
+	},
+
+	removeClockCorrection: async ({ request, cookies }) => {
+		const denied = guard(cookies);
+		if (denied) return denied;
+		const i = Number((await request.formData()).get('clockIndex'));
+		const cfg = getConfig();
+		if (!Number.isInteger(i) || !cfg.clockCorrections[i]) return fail(400, { error: 'Not found' });
+		saveConfig({ ...cfg, clockCorrections: cfg.clockCorrections.filter((_, j) => j !== i) });
+		requestRebuild();
+		return { clockCorrected: true };
 	},
 
 	refreshForecast: async ({ cookies }) => {

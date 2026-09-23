@@ -114,33 +114,94 @@ function record(r: LiveReading): void {
 
 /** Write a live 5-minute interval unless the inverter archive already has it. */
 function closeBucket(b: NonNullable<LiveState['bucket']>, next: LiveReading): void {
-	const covered = b.readings.length ? (b.readings.at(-1)!.ts - b.readings[0].ts) / BUCKET : 0;
-	if (covered < 0.5 || b.first.importWh === null || next.importWh === null) return;
-	const meanPv = b.readings.reduce((s, r) => s + r.pvW, 0) / b.readings.length;
-	const importWh = next.importWh - b.first.importWh;
-	const exportWh = (next.exportWh ?? 0) - (b.first.exportWh ?? 0);
-	if (importWh < 0 || exportWh < 0) return;
-	const carReadings = b.readings.filter((r) => r.carW != null);
-	if (carReadings.length >= b.readings.length / 2) {
+	writeInterval(b.start, b.readings, next);
+}
+
+/**
+ * Turn one bucket's raw readings into a 5-minute interval: mean solar power,
+ * and import/export from the meter counters at its start and at the next
+ * reading after it. Skipped when the readings cover under half the bucket.
+ */
+function writeInterval(start: number, readings: LiveReading[], next: LiveReading): boolean {
+	const first = readings[0];
+	const covered = readings.length ? (readings.at(-1)!.ts - first.ts) / BUCKET : 0;
+	if (covered < 0.5 || first.importWh === null || next.importWh === null) return false;
+	const meanPv = readings.reduce((s, r) => s + r.pvW, 0) / readings.length;
+	const importWh = next.importWh - first.importWh;
+	const exportWh = (next.exportWh ?? 0) - (first.exportWh ?? 0);
+	if (importWh < 0 || exportWh < 0) return false;
+	const db = getDb();
+	const carReadings = readings.filter((r) => r.carW != null);
+	if (carReadings.length >= readings.length / 2) {
 		const meanCar = carReadings.reduce((s, r) => s + r.carW!, 0) / carReadings.length;
-		getDb()
-			.prepare('INSERT OR REPLACE INTO car_intervals (ts, car_wh) VALUES (?, ?)')
-			.run(b.start, (meanCar * BUCKET) / 3600_000);
-	}
-	getDb()
-		.prepare(
-			`INSERT INTO intervals (ts, pv_wh, import_wh, export_wh, is_peak, source)
-			 VALUES (?, ?, ?, ?, ?, 'live')
-			 ON CONFLICT(ts) DO UPDATE SET pv_wh = excluded.pv_wh, import_wh = excluded.import_wh,
-			   export_wh = excluded.export_wh WHERE intervals.source = 'live'`
-		)
-		.run(
-			b.start,
-			(meanPv * BUCKET) / 3600_000,
-			importWh,
-			exportWh,
-			isPeak(b.start + BUCKET / 2) ? 1 : 0
+		db.prepare('INSERT OR REPLACE INTO car_intervals (ts, car_wh) VALUES (?, ?)').run(
+			start,
+			(meanCar * BUCKET) / 3600_000
 		);
+	}
+	db.prepare(
+		`INSERT INTO intervals (ts, pv_wh, import_wh, export_wh, is_peak, source)
+		 VALUES (?, ?, ?, ?, ?, 'live')
+		 ON CONFLICT(ts) DO UPDATE SET pv_wh = excluded.pv_wh, import_wh = excluded.import_wh,
+		   export_wh = excluded.export_wh WHERE intervals.source = 'live'`
+	).run(
+		start,
+		(meanPv * BUCKET) / 3600_000,
+		importWh,
+		exportWh,
+		isPeak(start + BUCKET / 2) ? 1 : 0
+	);
+	return true;
+}
+
+/**
+ * Rebuild missing 5-minute intervals since a time from the raw readings kept
+ * for the last 30 days. Returns how many were filled.
+ */
+export function fillGapsFromReadings(from: number): number {
+	const db = getDb();
+	const have = new Set(
+		(db.prepare('SELECT ts FROM intervals WHERE ts >= ?').all(from) as Array<{ ts: number }>).map(
+			(r) => r.ts
+		)
+	);
+	const rows = db
+		.prepare(
+			`SELECT ts, pv_w, grid_w, load_w, import_wh, export_wh, car_w FROM readings
+			 WHERE ts >= ? ORDER BY ts`
+		)
+		.all(from) as Array<{
+		ts: number;
+		pv_w: number;
+		grid_w: number;
+		load_w: number;
+		import_wh: number | null;
+		export_wh: number | null;
+		car_w: number | null;
+	}>;
+	const readings: LiveReading[] = rows.map((r) => ({
+		ts: r.ts,
+		pvW: r.pv_w,
+		gridW: r.grid_w,
+		loadW: r.load_w,
+		importWh: r.import_wh,
+		exportWh: r.export_wh,
+		carW: r.car_w
+	}));
+	let filled = 0;
+	let i = 0;
+	while (i < readings.length) {
+		const start = Math.floor(readings[i].ts / BUCKET) * BUCKET;
+		let j = i;
+		while (j < readings.length && readings[j].ts < start + BUCKET) j++;
+		// The next reading must follow straight on, or the counters span a gap.
+		const next = readings[j];
+		if (!have.has(start) && next && next.ts < start + BUCKET + MIN) {
+			if (writeInterval(start, readings.slice(i, j), next)) filled++;
+		}
+		i = j;
+	}
+	return filled;
 }
 
 function forecastFrom(now: number): ForecastSlot[] | null {
