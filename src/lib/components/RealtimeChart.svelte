@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { echarts, hobartTime, onSchemeChange, themeColors } from '$lib/charts';
+	import {
+		echarts,
+		hobartTime,
+		onSchemeChange,
+		themeColors,
+		usageSeries,
+		usageTooltip
+	} from '$lib/charts';
 	import type { RealtimePoint } from '$lib/types';
 
 	let { points, now, windowMs }: { points: RealtimePoint[]; now: number; windowMs: number } =
@@ -14,15 +21,6 @@
 	function render() {
 		if (!chart) return;
 		const c = themeColors();
-		const line = (name: string, color: string, key: keyof RealtimePoint, area = false) => ({
-			name,
-			type: 'line',
-			showSymbol: false,
-			lineStyle: { width: 2, color, cap: 'round', join: 'round' },
-			itemStyle: { color },
-			...(area ? { areaStyle: { color, opacity: 0.12 } } : {}),
-			data: points.map((p) => [p.ts, p[key]])
-		});
 		chart.setOption(
 			{
 				animation: false,
@@ -50,21 +48,9 @@
 					borderColor: c.border,
 					textStyle: { color: c.text, fontSize: 14 },
 					axisPointer: { type: 'line', lineStyle: { color: c.muted } },
-					formatter: (items: any[]) => {
-						const rows = items
-							.map(
-								(i) =>
-									`<div style="display:flex;gap:8px;align-items:center"><span style="width:10px;height:3px;background:${i.color};border-radius:2px"></span>${i.seriesName}<b style="margin-left:auto;padding-left:12px">${i.value[1].toFixed(1)} kW</b></div>`
-							)
-							.join('');
-						return `<div style="font-weight:600;margin-bottom:4px">${hobartTime(items[0].value[0])}</div>${rows}`;
-					}
+					formatter: usageTooltip
 				},
-				series: [
-					line('Solar', c.solar, 'pvKw', true),
-					line('House using', c.use, 'useKw'),
-					...(showCar ? [line('Car charging', c.car, 'carKw')] : [])
-				]
+				series: usageSeries(c, points, showCar, false)
 			},
 			{ notMerge: true }
 		);

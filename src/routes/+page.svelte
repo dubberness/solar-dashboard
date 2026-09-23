@@ -13,14 +13,16 @@
 
 	// svelte-ignore state_referenced_locally
 	let snap: Snapshot = $state(data.snapshot);
-	let today: {
+	interface Today {
 		dayStart: number;
-		series: Array<{ ts: number; pvKw: number; useKw: number }>;
+		series: Array<{ ts: number; pvKw: number; useKw: number; carKw?: number }>;
 		forecast: Array<{ ts: number; pvKw: number }>;
-	} | null = $state(null);
+	}
+	let today = $state<Today | null>(null);
 	let clock = $state(Date.now());
 	let recent: RealtimePoint[] = $state([]);
 	const carInRecent = $derived(recent.some((p) => p.carKw > 0.1));
+	const carToday = $derived(today?.series.some((p) => (p.carKw ?? 0) > 0.1) ?? false);
 
 	const kw = (v: number) => `${Math.max(0, v).toFixed(1)} kW`;
 	const dateText = $derived(
@@ -169,11 +171,11 @@
 					><span class="h-[3px] w-4 rounded bg-[var(--series-solar)]"></span>Solar</span
 				>
 				<span class="flex items-center gap-1.5"
-					><span class="h-[3px] w-4 rounded bg-[var(--series-use)]"></span>House using</span
+					><span class="swatch bg-[var(--series-use)]"></span>House using</span
 				>
 				{#if carInRecent}
 					<span class="flex items-center gap-1.5"
-						><span class="h-[3px] w-4 rounded bg-[var(--series-car)]"></span>Car charging</span
+						><span class="swatch bg-[var(--series-car)]"></span>Car charging</span
 					>
 				{/if}
 			</div>
@@ -193,8 +195,13 @@
 					></span>Forecast</span
 				>
 				<span class="flex items-center gap-1.5"
-					><span class="h-[3px] w-4 rounded bg-[var(--series-use)]"></span>House using</span
+					><span class="swatch bg-[var(--series-use)]"></span>House using</span
 				>
+				{#if carToday}
+					<span class="flex items-center gap-1.5"
+						><span class="swatch bg-[var(--series-car)]"></span>Car charging</span
+					>
+				{/if}
 				<span class="flex items-center gap-1.5"
 					><span class="h-3 w-4 rounded-sm bg-[var(--peak-band)] ring-1 ring-[var(--border)]"
 					></span>Peak price</span
@@ -224,3 +231,13 @@
 		</nav>
 	</footer>
 </main>
+
+<style>
+	/* Legend key for a filled area, matching its translucent fill. */
+	.swatch {
+		width: 1rem;
+		height: 0.75rem;
+		border-radius: 2px;
+		opacity: 0.5;
+	}
+</style>

@@ -265,6 +265,7 @@ export function openInterval() {
 		ts: b.start,
 		pvKw: mean((r) => r.pvW),
 		useKw: mean((r) => Math.max(0, r.loadW - (r.carW ?? 0))),
+		carKw: mean((r) => r.carW ?? 0),
 		peak: isPeak(b.start + BUCKET / 2)
 	};
 }

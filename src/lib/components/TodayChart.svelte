@@ -6,13 +6,17 @@
 		hobartTime,
 		onSchemeChange,
 		peakRanges,
-		themeColors
+		themeColors,
+		usageSeries,
+		usageTooltip
 	} from '$lib/charts';
 
 	interface Point {
 		ts: number;
 		pvKw: number;
+		/** House use, not counting the car. */
 		useKw: number;
+		carKw?: number;
 	}
 	let {
 		series,
@@ -32,6 +36,7 @@
 	// Show 5am to 10pm; nights are flat and just waste width.
 	const from = $derived(dayStart + 5 * 3600_000);
 	const to = $derived(dayStart + 22 * 3600_000);
+	const showCar = $derived(series.some((p) => (p.carKw ?? 0) > 0.1));
 
 	function render() {
 		if (!chart) return;
@@ -64,30 +69,18 @@
 					backgroundColor: c.surface,
 					borderColor: c.border,
 					textStyle: { color: c.text, fontSize: 14 },
-					valueFormatter: (v: number) => (v == null ? '–' : `${v.toFixed(1)} kW`),
 					axisPointer: { type: 'line', lineStyle: { color: c.muted } },
-					formatter: (items: any[]) => {
-						const t = hobartTime(items[0].value[0]);
-						const rows = items
-							.filter((i) => i.value[1] != null)
-							.map(
-								(i) =>
-									`<div style="display:flex;gap:8px;align-items:center"><span style="width:10px;height:3px;background:${i.color};border-radius:2px"></span>${i.seriesName}<b style="margin-left:auto;padding-left:12px">${i.value[1].toFixed(1)} kW</b></div>`
-							)
-							.join('');
-						return `<div style="font-weight:600;margin-bottom:4px">${t}</div>${rows}`;
-					}
+					formatter: usageTooltip
 				},
 				series: [
 					{
-						name: 'Solar',
+						name: 'Solar forecast',
 						type: 'line',
 						showSymbol: false,
-						smooth: 0.2,
-						lineStyle: { width: 2, color: c.solar, cap: 'round', join: 'round' },
+						smooth: 0.3,
+						lineStyle: { width: 2, color: c.solar, type: [2, 5], cap: 'round' },
 						itemStyle: { color: c.solar },
-						areaStyle: { color: c.solar, opacity: 0.12 },
-						data: series.map((p) => [p.ts, p.pvKw]),
+						data: futureForecast.map((p) => [p.ts, p.pvKw]),
 						markArea: {
 							silent: true,
 							itemStyle: { color: c.peakBand },
@@ -108,24 +101,7 @@
 							data: now >= from && now <= to ? [{ xAxis: now }] : []
 						}
 					},
-					{
-						name: 'Solar forecast',
-						type: 'line',
-						showSymbol: false,
-						smooth: 0.3,
-						lineStyle: { width: 2, color: c.solar, type: [2, 5], cap: 'round' },
-						itemStyle: { color: c.solar },
-						data: futureForecast.map((p) => [p.ts, p.pvKw])
-					},
-					{
-						name: 'House using',
-						type: 'line',
-						showSymbol: false,
-						smooth: 0.2,
-						lineStyle: { width: 2, color: c.use, cap: 'round', join: 'round' },
-						itemStyle: { color: c.use },
-						data: series.map((p) => [p.ts, p.useKw])
-					}
+					...usageSeries(c, series, showCar, 0.2)
 				]
 			},
 			{ notMerge: true }
@@ -147,7 +123,7 @@
 
 	$effect(() => {
 		// Re-render whenever the inputs change.
-		void [series, forecast, now, from];
+		void [series, forecast, now, from, showCar];
 		render();
 	});
 </script>

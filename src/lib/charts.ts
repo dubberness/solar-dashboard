@@ -75,3 +75,72 @@ export const hobartHour = (ts: number) =>
 		.format(ts)
 		.replace(/\s/g, '')
 		.toLowerCase();
+
+type Colors = ReturnType<typeof themeColors>;
+type Pt = { ts: number; pvKw: number; useKw: number; carKw?: number };
+
+/**
+ * House use and car charging stacked as filled areas, so the top edge is the
+ * total, with solar as a line over them: where the stack rises above the
+ * line, the difference comes from the grid.
+ */
+export function usageSeries(c: Colors, points: Pt[], showCar: boolean, smooth: number | false) {
+	const area = (name: string, color: string, data: Array<[number, number | null]>) => ({
+		name,
+		type: 'line',
+		stack: 'use',
+		smooth,
+		showSymbol: false,
+		lineStyle: { width: 1.5, color, join: 'round' },
+		itemStyle: { color },
+		areaStyle: { color, opacity: 0.35 },
+		data
+	});
+	return [
+		area(
+			'House using',
+			c.use,
+			points.map((p) => [p.ts, p.useKw])
+		),
+		// Gaps rather than zeros while the car isn't charging, so no car edge is drawn over the house.
+		...(showCar
+			? [
+					area(
+						'Car charging',
+						c.car,
+						points.map((p) => [p.ts, (p.carKw ?? 0) > 0.05 ? p.carKw! : null])
+					)
+				]
+			: []),
+		{
+			name: 'Solar',
+			type: 'line',
+			smooth,
+			showSymbol: false,
+			z: 3,
+			lineStyle: { width: 2.5, color: c.solar, cap: 'round', join: 'round' },
+			itemStyle: { color: c.solar },
+			data: points.map((p) => [p.ts, p.pvKw])
+		}
+	];
+}
+
+/** Tooltip body: solar first, then house, car and their total. */
+export function usageTooltip(items: any[]): string {
+	const order = ['Solar', 'Solar forecast', 'House using', 'Car charging'];
+	const shown = items
+		.filter((i) => i.value?.[1] != null)
+		.sort((a, b) => order.indexOf(a.seriesName) - order.indexOf(b.seriesName));
+	const row = (color: string | null, name: string, kw: number, bold = false) =>
+		`<div style="display:flex;gap:8px;align-items:center${bold ? ';font-weight:600' : ''}">` +
+		(color
+			? `<span style="width:10px;height:3px;background:${color};border-radius:2px"></span>`
+			: '<span style="width:10px"></span>') +
+		`${name}<b style="margin-left:auto;padding-left:12px">${kw.toFixed(1)} kW</b></div>`;
+	const rows = shown.map((i) => row(i.color, i.seriesName, i.value[1]));
+	const house = shown.find((i) => i.seriesName === 'House using');
+	const car = shown.find((i) => i.seriesName === 'Car charging');
+	if (house && car && car.value[1] > 0.05)
+		rows.push(row(null, 'Total using', house.value[1] + car.value[1], true));
+	return `<div style="font-weight:600;margin-bottom:4px">${hobartTime(items[0].value[0])}</div>${rows.join('')}`;
+}

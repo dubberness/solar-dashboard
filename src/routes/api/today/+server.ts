@@ -14,10 +14,10 @@ export const GET = () => {
 		period_end: number;
 		pv_kw: number;
 	}>;
-	// The dashboard's "House using" line leaves the car out, like the Using tile.
-	const series = daySeries(date).map(({ carKw, ...r }) => ({
+	// House use leaves the car out, like the Using tile; the chart stacks the car on top.
+	const series = daySeries(date).map((r) => ({
 		...r,
-		useKw: Math.max(0, r.useKw - carKw)
+		useKw: Math.max(0, r.useKw - r.carKw)
 	}));
 	const open = openInterval();
 	if (open && open.ts > (series.at(-1)?.ts ?? 0)) series.push(open);
