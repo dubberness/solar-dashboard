@@ -3,6 +3,7 @@ import { getConfig } from './config';
 import { purgeOldReadings, pollOnce } from './live';
 import { log } from './log';
 import { refreshForecast } from './forecast';
+import { pollEvccCar } from './evcc';
 
 const g = globalThis as unknown as { __solarScheduler?: boolean };
 
@@ -27,6 +28,7 @@ export function startBackgroundJobs(): void {
 			setInterval(run, ms);
 		}, initialDelay);
 	};
+	every(20_000, pollEvccCar, 0);
 	every(5 * 60_000, () => refreshForecast(), 3_000);
 	every(60 * 60_000, syncArchive, 10_000);
 	every(24 * 60 * 60_000, purgeOldReadings, 60_000);

@@ -114,6 +114,17 @@
 		{/each}
 	</div>
 
+	{#if snap.live?.car}
+		<p class="-mt-2 px-1 text-base text-[var(--text-secondary)] sm:text-lg">
+			{#if snap.live.car.flexible}
+				The car is charging on spare sunshine ({kw(snap.live.car.kw)}). It slows down when you turn
+				something on.
+			{:else}
+				The car is charging at full speed ({kw(snap.live.car.kw)}).
+			{/if}
+		</p>
+	{/if}
+
 	<section class="rounded-2xl bg-[var(--surface-2)] px-3 pt-4 pb-2 sm:px-5">
 		<div class="flex flex-wrap items-baseline justify-between gap-2 px-1">
 			<h2 class="text-lg font-medium">Today</h2>

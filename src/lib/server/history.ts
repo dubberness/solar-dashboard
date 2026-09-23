@@ -321,7 +321,9 @@ export function history(
 export function daySeries(date: string, db = getDb()) {
 	const rows = db
 		.prepare(
-			'SELECT ts, pv_wh, import_wh, export_wh, is_peak FROM intervals WHERE ts >= ? AND ts < ? ORDER BY ts'
+			`SELECT i.ts, i.pv_wh, i.import_wh, i.export_wh, i.is_peak, c.car_wh
+			 FROM intervals i LEFT JOIN car_intervals c ON c.ts = i.ts
+			 WHERE i.ts >= ? AND i.ts < ? ORDER BY i.ts`
 		)
 		.all(localMidnight(date), localMidnight(addDays(date, 1))) as Array<{
 		ts: number;
@@ -329,11 +331,14 @@ export function daySeries(date: string, db = getDb()) {
 		import_wh: number;
 		export_wh: number;
 		is_peak: number;
+		car_wh: number | null;
 	}>;
 	return rows.map((r) => ({
 		ts: r.ts,
 		pvKw: (r.pv_wh * 12) / 1000,
+		/** Includes the car. */
 		useKw: Math.max(0, ((r.pv_wh + r.import_wh - r.export_wh) * 12) / 1000),
+		carKw: ((r.car_wh ?? 0) * 12) / 1000,
 		peak: r.is_peak === 1
 	}));
 }

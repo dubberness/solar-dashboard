@@ -5,6 +5,8 @@ import { dataDir } from './config';
 // intervals: 5-minute energy buckets keyed by start time (epoch ms). They come
 //   from the inverter archive ("archive") or from integrating live readings
 //   ("live"); archive rows win. Only the general circuit is metered.
+// car_intervals: mean car charging per 5-minute bucket, from evcc, so the
+//   typical-house-load profile can leave the car out.
 // daily_import: whole-day totals from Solar.web exports, used for days with
 //   no interval data.
 const SCHEMA = `
@@ -23,6 +25,10 @@ CREATE TABLE IF NOT EXISTS intervals (
 	export_wh REAL NOT NULL,
 	is_peak INTEGER NOT NULL,
 	source TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS car_intervals (
+	ts INTEGER PRIMARY KEY,
+	car_wh REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS daily_import (
 	date TEXT PRIMARY KEY,

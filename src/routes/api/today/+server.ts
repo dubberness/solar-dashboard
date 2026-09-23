@@ -17,7 +17,11 @@ export const GET = () => {
 		date,
 		dayStart: localMidnight(date),
 		dayEnd: localMidnight(addDays(date, 1)),
-		series: daySeries(date),
+		// The dashboard's "House using" line leaves the car out, like the Using tile.
+		series: daySeries(date).map(({ carKw, ...r }) => ({
+			...r,
+			useKw: Math.max(0, r.useKw - carKw)
+		})),
 		// Plot each 30-minute forecast at its midpoint.
 		forecast: forecast.map((f) => ({ ts: f.period_end - 15 * 60_000, pvKw: f.pv_kw }))
 	});

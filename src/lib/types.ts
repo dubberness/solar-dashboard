@@ -27,6 +27,9 @@ export interface LiveReading {
 	loadW: number; // positive, general circuit only
 	importWh: number | null; // meter lifetime counters
 	exportWh: number | null;
+	/** Car charging power from evcc, and the part it would give up. Absent when unknown. */
+	carW?: number | null;
+	carFlexW?: number | null;
 }
 
 export interface ForecastSlot {
@@ -51,7 +54,15 @@ export interface CardVerdict {
 export interface Snapshot {
 	now: number;
 	stale: boolean;
-	live: { pvKw: number; loadKw: number; spareKw: number; gridKw: number } | null;
+	live: {
+		pvKw: number;
+		/** House use, not counting the car. */
+		loadKw: number;
+		/** Solar not used by the house, counting car charging that would give way. */
+		spareKw: number;
+		gridKw: number;
+		car: { kw: number; flexible: boolean } | null;
+	} | null;
 	period: { isPeak: boolean; label: string };
 	cards: CardVerdict[];
 	forecastAvailable: boolean;

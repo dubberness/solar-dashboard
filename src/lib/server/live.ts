@@ -5,6 +5,7 @@ import { isPeak, localDate, periodLabel } from '$lib/tou';
 import type { ForecastSlot, LiveReading, Snapshot } from '$lib/types';
 import { getConfig } from './config';
 import { getDb } from './db';
+import { carNow } from './evcc';
 import { readLive } from './fronius';
 import { log } from './log';
 
@@ -50,7 +51,8 @@ export async function pollOnce(): Promise<void> {
 	const cfg = getConfig();
 	try {
 		const r = await readLive(cfg.inverterHost);
-		record(r);
+		const car = carNow(r.ts);
+		record({ ...r, carW: car?.chargingW ?? null, carFlexW: car?.flexibleW ?? null });
 		state.lastOk = r.ts;
 		if (state.lastError) log.info('Inverter readings resumed');
 		state.lastError = null;
@@ -90,6 +92,13 @@ function closeBucket(b: NonNullable<LiveState['bucket']>, next: LiveReading): vo
 	const importWh = next.importWh - b.first.importWh;
 	const exportWh = (next.exportWh ?? 0) - (b.first.exportWh ?? 0);
 	if (importWh < 0 || exportWh < 0) return;
+	const carReadings = b.readings.filter((r) => r.carW != null);
+	if (carReadings.length >= b.readings.length / 2) {
+		const meanCar = carReadings.reduce((s, r) => s + r.carW!, 0) / carReadings.length;
+		getDb()
+			.prepare('INSERT OR REPLACE INTO car_intervals (ts, car_wh) VALUES (?, ?)')
+			.run(b.start, (meanCar * BUCKET) / 3600_000);
+	}
 	getDb()
 		.prepare(
 			`INSERT INTO intervals (ts, pv_wh, import_wh, export_wh, is_peak, source)
@@ -129,22 +138,32 @@ function hobartOffset(ts: number): number {
 }
 
 /**
- * Median general-circuit load per local half hour over the last 14 days.
- * Medians keep one-off loads (like the washer itself) out of the baseline.
+ * Median general-circuit load per local half hour over the last 14 days, not
+ * counting the car. Medians keep one-off loads (like the washer itself) out of
+ * the baseline. Car charging isn't known for intervals from before evcc was
+ * polled, so once a half hour has a few days with it known, only those count.
  */
 function baseLoadProfile(now: number): number[] {
 	if (profile && now - profile.builtAt < 60 * MIN) return profile.slots;
 	const rows = getDb()
-		.prepare('SELECT ts, pv_wh + import_wh - export_wh AS load_wh FROM intervals WHERE ts >= ?')
-		.all(now - 14 * 24 * 60 * MIN) as Array<{ ts: number; load_wh: number }>;
+		.prepare(
+			`SELECT i.ts, i.pv_wh + i.import_wh - i.export_wh AS load_wh, c.car_wh
+			 FROM intervals i LEFT JOIN car_intervals c ON c.ts = i.ts WHERE i.ts >= ?`
+		)
+		.all(now - 14 * 24 * 60 * MIN) as Array<{ ts: number; load_wh: number; car_wh: number | null }>;
 	const offset = hobartOffset(now);
-	const buckets: number[][] = Array.from({ length: 48 }, () => []);
+	const all: number[][] = Array.from({ length: 48 }, () => []);
+	const carKnown: number[][] = Array.from({ length: 48 }, () => []);
 	for (const r of rows) {
 		const slot = Math.floor(
 			((((r.ts + offset) % 86_400_000) + 86_400_000) % 86_400_000) / (30 * MIN)
 		);
-		buckets[slot].push((r.load_wh * 12) / 1000);
+		const kw = (Math.max(0, r.load_wh - (r.car_wh ?? 0)) * 12) / 1000;
+		all[slot].push(kw);
+		if (r.car_wh !== null) carKnown[slot].push(kw);
 	}
+	// Six 5-minute intervals per half hour, so 18 is about three days.
+	const buckets = all.map((b, i) => (carKnown[i].length >= 18 ? carKnown[i] : b));
 	const slots = buckets.map((b) => {
 		if (!b.length) return 0.5;
 		const s = [...b].sort((x, y) => x - y);
@@ -162,7 +181,9 @@ export function snapshot(now = Date.now()): Snapshot {
 	const avg = (f: (r: LiveReading) => number) =>
 		window.reduce((s, r) => s + f(r), 0) / Math.max(1, window.length);
 
-	const liveSpareKw = fresh && window.length ? avg((r) => r.pvW - r.loadW) / 1000 : null;
+	// Car charging that evcc would turn down counts as spare.
+	const liveSpareKw =
+		fresh && window.length ? avg((r) => r.pvW - r.loadW + (r.carFlexW ?? 0)) / 1000 : null;
 	const livePvKw = fresh && window.length ? avg((r) => r.pvW) / 1000 : null;
 	const forecast = forecastFrom(now);
 	const slots = baseLoadProfile(now);
@@ -178,9 +199,16 @@ export function snapshot(now = Date.now()): Snapshot {
 			fresh && latest
 				? {
 						pvKw: latest.pvW / 1000,
-						loadKw: latest.loadW / 1000,
-						spareKw: (latest.pvW - latest.loadW) / 1000,
-						gridKw: latest.gridW / 1000
+						loadKw: Math.max(0, latest.loadW - (latest.carW ?? 0)) / 1000,
+						spareKw: (latest.pvW - latest.loadW + (latest.carFlexW ?? 0)) / 1000,
+						gridKw: latest.gridW / 1000,
+						car:
+							(latest.carW ?? 0) > 100
+								? {
+										kw: latest.carW! / 1000,
+										flexible: (latest.carFlexW ?? 0) >= latest.carW! * 0.5
+									}
+								: null
 					}
 				: null,
 		period: periodLabel(now),
