@@ -3,7 +3,7 @@ import { getConfig } from './config';
 import { purgeOldReadings, pollOnce } from './live';
 import { log } from './log';
 import { refreshForecast } from './forecast';
-import { carNow, pollEvccCar } from './evcc';
+import { carNow, pollChargehaCar } from './chargeha';
 import { pollTessie } from './tessie';
 
 const g = globalThis as unknown as { __solarScheduler?: boolean };
@@ -29,11 +29,11 @@ export function startBackgroundJobs(): void {
 			setInterval(run, ms);
 		}, initialDelay);
 	};
-	// Only ask Tessie while evcc says the car is charging.
+	// Only ask Tessie while ChargeHA says the car is charging.
 	every(
 		20_000,
 		async () => {
-			await pollEvccCar();
+			await pollChargehaCar();
 			if ((carNow()?.chargingW ?? 0) > 0) await pollTessie();
 		},
 		0

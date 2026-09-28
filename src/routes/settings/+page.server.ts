@@ -29,7 +29,7 @@ export const load: PageServerLoad = ({ cookies }) => {
 		config: {
 			inverterHost: cfg.inverterHost,
 			forecastSource: cfg.forecast.source,
-			evccUrl: cfg.forecast.evccUrl,
+			chargehaUrl: cfg.chargehaUrl,
 			solcastResourceId: cfg.solcast.resourceId,
 			solcastKeySet: Boolean(cfg.solcast.apiKey),
 			tessieTokenSet: Boolean(cfg.tessie.token),
@@ -111,13 +111,14 @@ export const actions: Actions = {
 				tessie: { ...cfg.tessie }
 			};
 			const source = String(form.get('forecastSource') ?? cfg.forecast.source);
-			if (!['evcc', 'solcast', 'none'].includes(source)) throw new Error('Unknown forecast source');
+			if (!['chargeha', 'solcast', 'none'].includes(source))
+				throw new Error('Unknown forecast source');
 			next.forecast.source = source as ForecastSource;
-			if (!locked.has('forecast.evccUrl')) {
-				const url = String(form.get('evccUrl') ?? '').trim();
+			if (!locked.has('chargehaUrl')) {
+				const url = String(form.get('chargehaUrl') ?? '').trim();
 				if (url && !/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(url))
-					throw new Error('evcc address should look like http://192.168.1.3:7070');
-				next.forecast.evccUrl = url;
+					throw new Error('ChargeHA address should look like http://192.168.1.3:8000');
+				next.chargehaUrl = url;
 			}
 			if (!locked.has('inverterHost')) {
 				const host = String(form.get('inverterHost') ?? '').trim();

@@ -304,10 +304,10 @@
 						<input
 							type="radio"
 							name="forecastSource"
-							value="evcc"
-							checked={data.config.forecastSource === 'evcc'}
+							value="chargeha"
+							checked={data.config.forecastSource === 'chargeha'}
 						/>
-						evcc (recommended, uses no Solcast calls of its own)
+						ChargeHA (recommended, uses no Solcast calls of its own)
 					</label>
 					<label class="!flex-row items-center gap-2 !text-base !text-[var(--text-primary)]">
 						<input
@@ -329,13 +329,13 @@
 					</label>
 				</fieldset>
 				<label>
-					evcc address
+					ChargeHA address (forecast and car charging)
 					<input
 						class="field"
-						name="evccUrl"
-						value={data.config.evccUrl}
-						placeholder="http://192.168.1.3:7070"
-						disabled={isLocked('forecast.evccUrl')}
+						name="chargehaUrl"
+						value={data.config.chargehaUrl}
+						placeholder="http://192.168.1.3:8000"
+						disabled={isLocked('chargehaUrl')}
 					/>
 				</label>
 				<details class="flex flex-col gap-3">
@@ -411,13 +411,13 @@
 				{/if}
 				<p class="hint">
 					{#if !data.status.tessie.configured}
-						Without Tessie, the car’s charging power is estimated from evcc and the meter.
+						Without Tessie, the car’s charging power is estimated from ChargeHA and the meter.
 					{:else if data.status.tessie.lastError}
 						Tessie: {data.status.tessie.lastError}. Using the estimate for now.
 					{:else if data.status.tessie.measuredAt}
 						Car charging power measured by the car {ago(data.status.tessie.measuredAt)}.
 					{:else}
-						Tessie is asked only while evcc says the car is charging.
+						Tessie is asked only while ChargeHA says the car is charging.
 					{/if}
 				</p>
 				{#if data.locked.length}

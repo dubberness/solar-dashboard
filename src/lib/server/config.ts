@@ -9,9 +9,11 @@ import type { ForecastSource } from './forecast';
 export interface AppConfig {
 	inverterHost: string;
 	pollSeconds: number;
-	forecast: { source: ForecastSource; evccUrl: string };
+	/** ChargeHA's address: the solar forecast and what the car is doing. */
+	chargehaUrl: string;
+	forecast: { source: ForecastSource };
 	solcast: { apiKey: string; resourceId: string };
-	/** Optional: the car's measured charging power, instead of estimating it from evcc. */
+	/** Optional: the car's measured charging power, instead of estimating it from ChargeHA. */
 	tessie: { token: string };
 	appliances: Appliance[];
 	tariffs: Tariff[];
@@ -35,7 +37,8 @@ export const DEFAULT_APPLIANCES: Appliance[] = [
 const DEFAULTS: AppConfig = {
 	inverterHost: '192.168.1.8',
 	pollSeconds: 5,
-	forecast: { source: 'evcc', evccUrl: '' },
+	chargehaUrl: '',
+	forecast: { source: 'chargeha' },
 	solcast: { apiKey: '', resourceId: '' },
 	tessie: { token: '' },
 	appliances: DEFAULT_APPLIANCES,
@@ -47,7 +50,7 @@ const DEFAULTS: AppConfig = {
 /** Environment variables that override the config file, keyed by config path. */
 const ENV_OVERRIDES = {
 	inverterHost: 'INVERTER_HOST',
-	'forecast.evccUrl': 'EVCC_URL',
+	chargehaUrl: 'CHARGEHA_URL',
 	'solcast.apiKey': 'SOLCAST_API_KEY',
 	'solcast.resourceId': 'SOLCAST_RESOURCE_ID',
 	'tessie.token': 'TESSIE_TOKEN',
@@ -80,20 +83,25 @@ export function envLocked(): Set<string> {
 	);
 }
 
+/** Configs saved before the switch from evcc to ChargeHA still say "evcc". */
+function forecastSource(saved: string | undefined): ForecastSource {
+	return saved === 'solcast' || saved === 'none' ? saved : 'chargeha';
+}
+
 export function getConfig(): AppConfig {
 	if (cached) return cached;
 	const file = readFile();
 	const cfg: AppConfig = {
 		...DEFAULTS,
 		...file,
-		forecast: { ...DEFAULTS.forecast, ...file.forecast },
+		forecast: { source: forecastSource(file.forecast?.source) },
 		solcast: { ...DEFAULTS.solcast, ...file.solcast },
 		tessie: { ...DEFAULTS.tessie, ...file.tessie },
 		appliances: file.appliances?.length ? file.appliances : DEFAULTS.appliances,
 		tariffs: file.tariffs?.length ? file.tariffs : DEFAULTS.tariffs
 	};
 	if (env.INVERTER_HOST) cfg.inverterHost = env.INVERTER_HOST;
-	if (env.EVCC_URL) cfg.forecast.evccUrl = env.EVCC_URL;
+	if (env.CHARGEHA_URL) cfg.chargehaUrl = env.CHARGEHA_URL;
 	if (env.SOLCAST_API_KEY) cfg.solcast.apiKey = env.SOLCAST_API_KEY;
 	if (env.SOLCAST_RESOURCE_ID) cfg.solcast.resourceId = env.SOLCAST_RESOURCE_ID;
 	if (env.TESSIE_TOKEN) cfg.tessie.token = env.TESSIE_TOKEN;

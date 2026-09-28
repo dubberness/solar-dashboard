@@ -5,7 +5,7 @@ import { isPeak, localDate, periodLabel } from '$lib/tou';
 import type { CarMode, ForecastSlot, LiveReading, Snapshot } from '$lib/types';
 import { getConfig } from './config';
 import { getDb } from './db';
-import { carNow } from './evcc';
+import { carNow } from './chargeha';
 import { inverterClockSkewMs, readLive } from './fronius';
 import { tessieCarW } from './tessie';
 import { log } from './log';
@@ -75,9 +75,9 @@ export async function pollOnce(): Promise<void> {
 }
 
 /**
- * What the car is drawing, in watts, or null when evcc isn't answering. The
- * car's own measurement (via Tessie) wins. Otherwise use what evcc offers the
- * car, which can be more than it takes: the car is on the metered circuit, so
+ * What the car is drawing, in watts, or null when ChargeHA isn't answering. The
+ * car's own measurement (via Tessie) wins. Otherwise use the amps ChargeHA set,
+ * which can be more than the car takes: the car is on the metered circuit, so
  * cap that at the load less the house's background use.
  */
 function carPower(r: LiveReading): number | null {
@@ -229,8 +229,8 @@ function hobartOffset(ts: number): number {
 /**
  * General-circuit load per local half hour over the last 14 days, not counting
  * the car: the level a busy day (1 in 4) reaches, so looking ahead errs towards
- * less spare solar. Car charging isn't known for intervals from before evcc was
- * polled, so once a half hour has a few days with it known, only those count.
+ * less spare solar. Car charging isn't known for intervals from when neither
+ * evcc nor ChargeHA was answering, so once a half hour has a few days with it known, only those count.
  */
 function baseLoadProfile(now: number): number[] {
 	if (profile && now - profile.builtAt < 60 * MIN) return profile.slots;
@@ -270,7 +270,7 @@ export function snapshot(now = Date.now()): Snapshot {
 	const avg = (f: (r: LiveReading) => number) =>
 		window.reduce((s, r) => s + f(r), 0) / Math.max(1, window.length);
 
-	// Car charging that evcc would turn down counts as spare.
+	// Car charging that ChargeHA would turn down counts as spare.
 	const liveSpareKw =
 		fresh && window.length ? avg((r) => r.pvW - r.loadW + (r.carFlexW ?? 0)) / 1000 : null;
 	const livePvKw = fresh && window.length ? avg((r) => r.pvW) / 1000 : null;

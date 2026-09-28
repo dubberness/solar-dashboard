@@ -1,7 +1,7 @@
 // Solcast rooftop-site forecasts, fetched directly. The free hobbyist tier
 // allows about 10 calls a day per account, so fetches are spaced out through
-// daylight and counted per day. If evcc also uses the account, read the
-// forecast from evcc instead (see forecast.ts) so the two don't share the quota.
+// daylight and counted per day. If ChargeHA also uses the account, read the
+// forecast from ChargeHA instead (see forecast.ts) so the two don't share the quota.
 import { localDate } from '$lib/tou';
 import type { ForecastSlot } from '$lib/types';
 import { getConfig } from './config';

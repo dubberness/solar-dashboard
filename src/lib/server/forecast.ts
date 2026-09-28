@@ -1,17 +1,17 @@
-// Where the solar forecast comes from. evcc already fetches Solcast (spending
-// the account's ~10 free calls a day) and republishes it locally, so reading it
-// from evcc costs no extra Solcast calls. Direct Solcast is the fallback for
-// setups without evcc.
+// Where the solar forecast comes from. ChargeHA already fetches Solcast
+// (spending the account's ~10 free calls a day) and serves it locally, so
+// reading it from ChargeHA costs no extra Solcast calls. Direct Solcast is the
+// fallback for setups without ChargeHA.
 import type { ForecastSlot } from '$lib/types';
+import { chargehaQuery, chargehaUrl } from './chargeha';
 import { getConfig } from './config';
 import { getDb, kvGet, kvSet } from './db';
 import { log } from './log';
 import { maybeFetchSolcast, solcastStatus } from './solcast';
 
-const SLOT_MS = 30 * 60_000;
-const EVCC_REFRESH_MS = 15 * 60_000;
+const CHARGEHA_REFRESH_MS = 15 * 60_000;
 
-export type ForecastSource = 'evcc' | 'solcast' | 'none';
+export type ForecastSource = 'chargeha' | 'solcast' | 'none';
 
 export function storeForecast(slots: ForecastSlot[], now = Date.now(), db = getDb()): void {
 	const insert = db.prepare(
@@ -24,56 +24,46 @@ export function storeForecast(slots: ForecastSlot[], now = Date.now(), db = getD
 }
 
 /**
- * evcc's /api/state carries forecast.solar.timeseries as [epoch seconds, watts]
- * pairs, one per 15 minutes, stamped at the start of each period. Average them
- * into the 30-minute slots the rest of the app uses.
+ * ChargeHA's forecast.summary carries 30-minute periods stamped at their start,
+ * in watts, already corrected by what ChargeHA has learned from the panels'
+ * actual output. Only the periods still ahead matter here.
  */
-export function parseEvccForecast(body: any): ForecastSlot[] {
-	const state = body?.result ?? body;
-	const series: Array<[number, number]> = state?.forecast?.solar?.timeseries ?? [];
-	const slots = new Map<number, number[]>();
-	for (const point of series) {
-		if (!Array.isArray(point) || point.length < 2) continue;
-		const [ts, watts] = point;
-		if (!Number.isFinite(ts) || !Number.isFinite(watts)) continue;
-		const start = Math.floor((ts * 1000) / SLOT_MS) * SLOT_MS;
-		const list = slots.get(start) ?? [];
-		list.push(watts);
-		slots.set(start, list);
+export function parseChargehaForecast(summary: any): ForecastSlot[] {
+	const slots: ForecastSlot[] = [];
+	for (const p of summary?.periods ?? []) {
+		const start = Date.parse(p?.periodStart);
+		const minutes = Number(p?.periodMinutes) || 30;
+		const watts = Number(p?.pvW);
+		if (!Number.isFinite(start) || p?.pvW == null || !Number.isFinite(watts)) continue;
+		slots.push({ periodEnd: start + minutes * 60_000, pvKw: watts / 1000 });
 	}
-	return [...slots.entries()]
-		.sort(([a], [b]) => a - b)
-		.map(([start, ws]) => ({
-			periodEnd: start + SLOT_MS,
-			pvKw: ws.reduce((s, w) => s + w, 0) / ws.length / 1000
-		}));
+	return slots.sort((a, b) => a.periodEnd - b.periodEnd);
 }
 
-async function fetchEvcc(force: boolean): Promise<void> {
-	const url = getConfig().forecast.evccUrl.replace(/\/+$/, '');
-	if (!url) return;
+async function fetchChargeha(force: boolean): Promise<void> {
+	if (!chargehaUrl()) return;
 	const now = Date.now();
-	const last = Number(kvGet('evcc_last_fetch') ?? 0);
-	if (!force && now - last < EVCC_REFRESH_MS) return;
-	kvSet('evcc_last_fetch', String(now));
+	const last = Number(kvGet('chargeha_last_fetch') ?? 0);
+	if (!force && now - last < CHARGEHA_REFRESH_MS) return;
+	kvSet('chargeha_last_fetch', String(now));
 	try {
-		const res = await fetch(`${url}/api/state`, { signal: AbortSignal.timeout(10_000) });
-		if (!res.ok) throw new Error(`evcc ${res.status} ${res.statusText}`);
-		const slots = parseEvccForecast(await res.json());
-		if (!slots.length) throw new Error('evcc has no solar forecast configured');
+		const [summary] = await chargehaQuery(['forecast.summary'], 10_000);
+		const slots = parseChargehaForecast(summary);
+		if (!slots.some((s) => s.periodEnd > now))
+			throw new Error('ChargeHA has no solar forecast set up');
 		storeForecast(slots, now);
-		if (kvGet('evcc_last_error')) log.info('evcc forecast working again');
-		kvSet('evcc_last_error', '');
+		if (kvGet('chargeha_last_error')) log.info('ChargeHA forecast working again');
+		kvSet('chargeha_last_error', '');
 	} catch (e) {
 		const msg = (e as Error).message;
-		if (msg !== kvGet('evcc_last_error')) log.warn(`evcc forecast fetch failed: ${msg}`);
-		kvSet('evcc_last_error', msg);
+		if (msg !== kvGet('chargeha_last_error')) log.warn(`ChargeHA forecast fetch failed: ${msg}`);
+		kvSet('chargeha_last_error', msg);
 	}
 }
 
 export async function refreshForecast(force = false): Promise<void> {
 	const { source } = getConfig().forecast;
-	if (source === 'evcc') await fetchEvcc(force);
+	if (source === 'chargeha') await fetchChargeha(force);
 	else if (source === 'solcast') {
 		const slots = await maybeFetchSolcast(force);
 		if (slots?.length) storeForecast(slots);
@@ -81,13 +71,13 @@ export async function refreshForecast(force = false): Promise<void> {
 }
 
 export function forecastStatus() {
-	const { source, evccUrl } = getConfig().forecast;
-	if (source === 'evcc') {
+	const { source } = getConfig().forecast;
+	if (source === 'chargeha') {
 		return {
 			source,
-			configured: Boolean(evccUrl),
-			lastFetch: Number(kvGet('evcc_last_fetch') ?? 0) || null,
-			lastError: kvGet('evcc_last_error') || null,
+			configured: Boolean(chargehaUrl()),
+			lastFetch: Number(kvGet('chargeha_last_fetch') ?? 0) || null,
+			lastError: kvGet('chargeha_last_error') || null,
 			callsToday: null as number | null
 		};
 	}

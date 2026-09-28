@@ -1,7 +1,7 @@
 // The car's own measurement of what it's drawing, via Tessie. Tessie streams
 // from the car and serves its latest values from cache, so polling it neither
-// wakes the car nor costs Tesla API credits. Only asked while evcc says the car
-// is charging.
+// wakes the car nor costs Tesla API credits. Only asked while ChargeHA says the
+// car is charging.
 import { getConfig } from './config';
 import { log } from './log';
 

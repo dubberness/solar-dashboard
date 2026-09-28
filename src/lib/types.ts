@@ -27,7 +27,7 @@ export interface LiveReading {
 	loadW: number; // positive, general circuit only
 	importWh: number | null; // meter lifetime counters
 	exportWh: number | null;
-	/** Car charging power from evcc, and the part it would give up. Absent when unknown. */
+	/** Car charging power from ChargeHA, and the part it would give up. Absent when unknown. */
 	carW?: number | null;
 	carFlexW?: number | null;
 }
@@ -51,7 +51,7 @@ export interface CardVerdict {
 	peakCostCents: number | null;
 }
 
-/** evcc's charging mode: solar only, minimum + solar, fast, or a charging plan. */
+/** How the car is charging: solar only, minimum + solar, fast, or to a schedule. */
 export type CarMode = 'pv' | 'minpv' | 'now' | 'plan';
 
 export interface Snapshot {

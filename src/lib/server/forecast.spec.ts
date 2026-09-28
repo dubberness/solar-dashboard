@@ -1,36 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { parseEvccForecast } from './forecast';
+import { parseChargehaForecast } from './forecast';
 
-describe('parseEvccForecast', () => {
-	// 09:00, 09:15, 09:30 AEST on 23 Sep 2026, as evcc 0.315 reports them.
-	const t = 1790118000;
+describe('parseChargehaForecast', () => {
+	// 11:00 AEST on 28 Sep 2026, as ChargeHA's forecast.summary reports it.
+	const start = Date.parse('2026-09-28T01:00:00Z');
+	const period = (periodStart: string, pvW: number | null, actualW: number | null = null) => ({
+		periodStart,
+		periodMinutes: 30,
+		pvW,
+		pvW10: pvW,
+		pvW90: pvW,
+		actualW
+	});
 
-	it('averages 15-minute evcc points into 30-minute slots ending on the half hour', () => {
-		const body = {
-			forecast: {
-				solar: {
-					scale: 1.05,
-					timeseries: [
-						[t, 3000],
-						[t + 900, 4000],
-						[t + 1800, 5000]
-					]
-				}
-			}
+	it('turns 30-minute periods stamped at their start into slots ending 30 minutes later', () => {
+		const summary = {
+			today: { date: '2026-09-28' },
+			periods: [
+				period('2026-09-28T01:30:00Z', 5508.8),
+				period('2026-09-28T01:00:00Z', 5375.5, 5015.7)
+			]
 		};
-		expect(parseEvccForecast(body)).toEqual([
-			{ periodEnd: (t + 1800) * 1000, pvKw: 3.5 },
-			{ periodEnd: (t + 3600) * 1000, pvKw: 5 }
+		expect(parseChargehaForecast(summary)).toEqual([
+			{ periodEnd: start + 30 * 60_000, pvKw: 5.3755 },
+			{ periodEnd: start + 60 * 60_000, pvKw: 5.5088 }
 		]);
 	});
 
-	it('accepts the older { result: ... } envelope', () => {
-		const body = { result: { forecast: { solar: { timeseries: [[t, 2000]] } } } };
-		expect(parseEvccForecast(body)).toEqual([{ periodEnd: (t + 1800) * 1000, pvKw: 2 }]);
+	it('skips periods without a forecast', () => {
+		expect(parseChargehaForecast({ periods: [period('2026-09-28T01:00:00Z', null)] })).toEqual([]);
 	});
 
-	it('returns nothing when evcc has no solar forecast', () => {
-		expect(parseEvccForecast({ forecast: {} })).toEqual([]);
-		expect(parseEvccForecast({})).toEqual([]);
+	it('returns nothing when ChargeHA has no forecast set up', () => {
+		expect(parseChargehaForecast({ today: null, days: [], periods: [] })).toEqual([]);
+		expect(parseChargehaForecast(undefined)).toEqual([]);
 	});
 });

@@ -28,7 +28,7 @@
 	const n = (v: number) => Math.max(0, v).toFixed(1);
 
 	// "Using" is everything on the meter, split into house and car when the car is
-	// charging. "Spare" counts the part of the car's charging that evcc would give up.
+	// charging. "Spare" counts the part of the car's charging that ChargeHA would give up.
 	const stats = $derived.by(() => {
 		const live = snap.live;
 		const car = live?.car ?? null;

@@ -5,7 +5,7 @@ import { dataDir } from './config';
 // intervals: 5-minute energy buckets keyed by start time (epoch ms). They come
 //   from the inverter archive ("archive") or from integrating live readings
 //   ("live"); archive rows win. Only the general circuit is metered.
-// car_intervals: mean car charging per 5-minute bucket, from evcc, so the
+// car_intervals: mean car charging per 5-minute bucket, from evcc/ChargeHA, so the
 //   typical-house-load profile can leave the car out.
 // daily_import: whole-day totals from Solar.web exports, used for days with
 //   no interval data.
