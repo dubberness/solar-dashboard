@@ -32,13 +32,22 @@ export function chargehaUrl(): string {
 
 /**
  * GET a tRPC query (or several, comma-separated, batched into one request) from
- * ChargeHA. These read-only queries need no login.
+ * ChargeHA. With its login on, these need its read-only key, which only works
+ * for a short list of reads and only from the LAN.
  */
 export async function chargehaQuery(paths: string[], timeoutMs = 8_000): Promise<any[]> {
 	const url = chargehaUrl();
+	const { chargehaToken } = getConfig();
 	const res = await fetch(`${url}/trpc/${paths.join(',')}?batch=1&input=%7B%7D`, {
+		headers: chargehaToken ? { Authorization: `Bearer ${chargehaToken}` } : {},
 		signal: AbortSignal.timeout(timeoutMs)
 	});
+	if (res.status === 401)
+		throw new Error(
+			chargehaToken
+				? 'ChargeHA refused the read-only key'
+				: 'ChargeHA has its login on, so it needs a read-only key'
+		);
 	if (!res.ok) throw new Error(`ChargeHA ${res.status} ${res.statusText}`);
 	const body = (await res.json()) as Array<{ result?: { data: unknown }; error?: any }>;
 	return body.map((r, i) => {

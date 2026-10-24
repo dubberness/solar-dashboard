@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { parseChargehaCar } from './chargeha';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { chargehaQuery, parseChargehaCar } from './chargeha';
+
+const config = vi.hoisted(() => ({ chargehaUrl: 'http://chargeha.test:8000', chargehaToken: '' }));
+vi.mock('./config', () => ({ getConfig: () => config }));
 
 // Trimmed from ChargeHA's charger.list for the Tesla via Tessie.
 const charger = (over: Record<string, unknown> = {}, state: Record<string, unknown> = {}) => ({
@@ -91,5 +94,45 @@ describe('parseChargehaCar', () => {
 			mode: null
 		});
 		expect(parseChargehaCar([], [], on, solarOnly)).toEqual({ chargingW: 0, keepW: 0, mode: null });
+	});
+});
+
+describe('chargehaQuery', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		config.chargehaToken = '';
+	});
+
+	const stubFetch = (status: number) => {
+		const fetch = vi.fn(
+			async (_url: string, _init?: RequestInit) =>
+				new Response(JSON.stringify([{ result: { data: 'ok' } }]), { status })
+		);
+		vi.stubGlobal('fetch', fetch);
+		return fetch;
+	};
+
+	it('sends the read-only key when one is set', async () => {
+		config.chargehaToken = 'k'.repeat(40);
+		const fetch = stubFetch(200);
+
+		expect(await chargehaQuery(['charger.list'])).toEqual(['ok']);
+		expect(fetch.mock.calls[0][1]?.headers).toEqual({ Authorization: `Bearer ${'k'.repeat(40)}` });
+	});
+
+	it('sends no Authorization header without a key', async () => {
+		const fetch = stubFetch(200);
+
+		await chargehaQuery(['charger.list']);
+		expect(fetch.mock.calls[0][1]?.headers).toEqual({});
+	});
+
+	it('says what is wrong when ChargeHA wants a login', async () => {
+		stubFetch(401);
+		await expect(chargehaQuery(['charger.list'])).rejects.toThrow('needs a read-only key');
+
+		config.chargehaToken = 'wrong'.repeat(8);
+		stubFetch(401);
+		await expect(chargehaQuery(['charger.list'])).rejects.toThrow('refused the read-only key');
 	});
 });

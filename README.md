@@ -60,6 +60,7 @@ The Fronius meter only measures the house's general circuit. Heating and hot wat
 | ---------------------------------------- | ------------------------------- | ------------------------------------------ |
 | `INVERTER_HOST`                          | –                               | Overrides the inverter address in Settings |
 | `CHARGEHA_URL`                           | –                               | ChargeHA address (forecast and car)        |
+| `CHARGEHA_TOKEN`                         | –                               | ChargeHA's `READONLY_API_KEY`, if login on |
 | `SOLCAST_API_KEY`, `SOLCAST_RESOURCE_ID` | –                               | Direct Solcast (only without ChargeHA)     |
 | `TESSIE_TOKEN`                           | –                               | Measured car charging power (optional)     |
 | `SETTINGS_PIN`                           | –                               | Overrides the PIN                          |

@@ -30,6 +30,7 @@ export const load: PageServerLoad = ({ cookies }) => {
 			inverterHost: cfg.inverterHost,
 			forecastSource: cfg.forecast.source,
 			chargehaUrl: cfg.chargehaUrl,
+			chargehaTokenSet: Boolean(cfg.chargehaToken),
 			solcastResourceId: cfg.solcast.resourceId,
 			solcastKeySet: Boolean(cfg.solcast.apiKey),
 			tessieTokenSet: Boolean(cfg.tessie.token),
@@ -119,6 +120,13 @@ export const actions: Actions = {
 				if (url && !/^https?:\/\/[\w.-]+(:\d+)?\/?$/.test(url))
 					throw new Error('ChargeHA address should look like http://192.168.1.3:8000');
 				next.chargehaUrl = url;
+			}
+			if (!locked.has('chargehaToken')) {
+				// A saved key only goes to the address it was saved for.
+				if (next.chargehaUrl !== cfg.chargehaUrl) next.chargehaToken = '';
+				const chargehaToken = String(form.get('chargehaToken') ?? '').trim();
+				if (chargehaToken) next.chargehaToken = chargehaToken;
+				if (form.get('chargehaClearToken')) next.chargehaToken = '';
 			}
 			if (!locked.has('inverterHost')) {
 				const host = String(form.get('inverterHost') ?? '').trim();

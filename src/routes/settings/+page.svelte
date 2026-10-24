@@ -338,6 +338,24 @@
 						disabled={isLocked('chargehaUrl')}
 					/>
 				</label>
+				<label>
+					ChargeHA read-only key (needed when its login is on)
+					<input
+						class="field"
+						name="chargehaToken"
+						type="password"
+						autocomplete="off"
+						placeholder={data.config.chargehaTokenSet
+							? 'Saved. Leave blank to keep it.'
+							: "Paste ChargeHA's READONLY_API_KEY"}
+						disabled={isLocked('chargehaToken')}
+					/>
+				</label>
+				{#if data.config.chargehaTokenSet && !isLocked('chargehaToken')}
+					<label class="!flex-row items-center gap-2"
+						><input type="checkbox" name="chargehaClearToken" /> Remove saved key</label
+					>
+				{/if}
 				<details class="flex flex-col gap-3">
 					<summary class="cursor-pointer text-sm text-[var(--text-secondary)]"
 						>Direct Solcast settings</summary

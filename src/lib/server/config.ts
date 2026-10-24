@@ -11,6 +11,8 @@ export interface AppConfig {
 	pollSeconds: number;
 	/** ChargeHA's address: the solar forecast and what the car is doing. */
 	chargehaUrl: string;
+	/** ChargeHA's READONLY_API_KEY, needed once its login is on. */
+	chargehaToken: string;
 	forecast: { source: ForecastSource };
 	solcast: { apiKey: string; resourceId: string };
 	/** Optional: the car's measured charging power, instead of estimating it from ChargeHA. */
@@ -38,6 +40,7 @@ const DEFAULTS: AppConfig = {
 	inverterHost: '192.168.1.8',
 	pollSeconds: 5,
 	chargehaUrl: '',
+	chargehaToken: '',
 	forecast: { source: 'chargeha' },
 	solcast: { apiKey: '', resourceId: '' },
 	tessie: { token: '' },
@@ -51,6 +54,7 @@ const DEFAULTS: AppConfig = {
 const ENV_OVERRIDES = {
 	inverterHost: 'INVERTER_HOST',
 	chargehaUrl: 'CHARGEHA_URL',
+	chargehaToken: 'CHARGEHA_TOKEN',
 	'solcast.apiKey': 'SOLCAST_API_KEY',
 	'solcast.resourceId': 'SOLCAST_RESOURCE_ID',
 	'tessie.token': 'TESSIE_TOKEN',
@@ -102,6 +106,7 @@ export function getConfig(): AppConfig {
 	};
 	if (env.INVERTER_HOST) cfg.inverterHost = env.INVERTER_HOST;
 	if (env.CHARGEHA_URL) cfg.chargehaUrl = env.CHARGEHA_URL;
+	if (env.CHARGEHA_TOKEN) cfg.chargehaToken = env.CHARGEHA_TOKEN;
 	if (env.SOLCAST_API_KEY) cfg.solcast.apiKey = env.SOLCAST_API_KEY;
 	if (env.SOLCAST_RESOURCE_ID) cfg.solcast.resourceId = env.SOLCAST_RESOURCE_ID;
 	if (env.TESSIE_TOKEN) cfg.tessie.token = env.TESSIE_TOKEN;
